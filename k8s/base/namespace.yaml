@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: forgelink
+  labels:
+    app.kubernetes.io/name: forgelink
+    app.kubernetes.io/part-of: forgelink-platform

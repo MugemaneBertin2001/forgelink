@@ -1,0 +1,154 @@
+version: "3.9"
+
+# ============================================
+# ForgeLink - Development Overrides
+# ============================================
+# This file automatically loads with docker-compose up
+# Adds hot-reload, debug settings, and dev conveniences
+# ============================================
+
+services:
+  # Django API - Development mode
+  forgelink-api:
+    build:
+      context: ./services/django-api
+      dockerfile: Dockerfile
+      target: development
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_DEBUG: "true"
+      DJANGO_LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/django-api:/app
+      - django_static:/app/staticfiles
+    stdin_open: true
+    tty: true
+
+  # Spring IDP - Development mode
+  forgelink-idp:
+    build:
+      context: ./services/spring-idp
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    ports:
+      - "8080:8080"
+      - "5005:5005"  # Debug port
+
+  # Spring Asset Service - Development mode
+  forgelink-asset-service:
+    build:
+      context: ./services/spring-asset-service
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
+    ports:
+      - "8081:8081"
+      - "5006:5006"  # Debug port
+
+  # Spring Alert Service - Development mode
+  forgelink-alert-service:
+    build:
+      context: ./services/spring-alert-service
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
+    ports:
+      - "8082:8082"
+      - "5007:5007"  # Debug port
+
+  # MQTT Bridge - Development mode with hot reload
+  forgelink-mqtt-bridge:
+    build:
+      context: ./services/mqtt-bridge
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./services/mqtt-bridge:/app
+    environment:
+      LOG_LEVEL: DEBUG
+
+  # Celery Worker - for Django background tasks
+  forgelink-celery-worker:
+    build:
+      context: ./services/django-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: forgelink-celery-worker
+    hostname: forgelink-celery-worker
+    command: celery -A core worker -l DEBUG -Q default,telemetry,alerts,ai
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+    volumes:
+      - ./services/django-api:/app
+    networks:
+      - forgelink-network
+    depends_on:
+      - redis
+      - postgres
+      - forgelink-api
+
+  # Celery Beat - for scheduled tasks
+  forgelink-celery-beat:
+    build:
+      context: ./services/django-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: forgelink-celery-beat
+    hostname: forgelink-celery-beat
+    command: celery -A core beat -l DEBUG
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+    volumes:
+      - ./services/django-api:/app
+    networks:
+      - forgelink-network
+    depends_on:
+      - redis
+      - forgelink-api
+
+  # Kafka UI - Development convenience
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.1
+    container_name: forgelink-kafka-ui
+    hostname: kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: forgelink
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - forgelink-network
+    depends_on:
+      - kafka
+
+  # Mailhog - Email testing
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: forgelink-mailhog
+    hostname: mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - forgelink-network
+
+volumes:
+  django_static:
+    name: forgelink-django-static
+
+networks:
+  forgelink-network:
+    external: true
+    name: forgelink-network

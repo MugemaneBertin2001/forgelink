@@ -1,0 +1,213 @@
+# ============================================
+# ForgeLink .gitignore
+# ============================================
+
+# -------------------- Environment --------------------
+.env
+.env.local
+.env.*.local
+*.env
+
+# -------------------- Python --------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# -------------------- Java / Spring --------------------
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+
+# Gradle
+.gradle/
+**/build/
+
+# -------------------- Flutter / Dart --------------------
+# Dart
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Flutter
+.flutter-plugins
+.flutter-plugins-dependencies
+*.lock
+
+# Android
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.*
+
+# iOS
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/project.xcworkspace/
+**/ios/**/xcuserdata/
+**/ios/.generated/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Pods/
+**/ios/Runner.xcworkspace/
+
+# -------------------- Node.js --------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# -------------------- Docker --------------------
+# Don't ignore Dockerfiles
+!Dockerfile
+!Dockerfile.*
+!docker-compose*.yml
+
+# -------------------- Kubernetes --------------------
+# Secrets (should use External Secrets Operator)
+k8s/**/secrets/*.yaml
+!k8s/**/secrets/*.example.yaml
+
+# Helm
+charts/*/charts/
+*.tgz
+
+# -------------------- IDE / Editor --------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# -------------------- Secrets & Certificates --------------------
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+secrets/
+!secrets/.gitkeep
+
+# -------------------- Logs --------------------
+logs/
+*.log
+
+# -------------------- Testing --------------------
+coverage/
+.nyc_output/
+test-results/
+junit.xml
+
+# -------------------- AI Models --------------------
+models/*.pkl
+models/*.joblib
+models/*.h5
+!models/.gitkeep
+
+# -------------------- Misc --------------------
+*.bak
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/

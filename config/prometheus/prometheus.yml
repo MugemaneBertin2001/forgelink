@@ -1,0 +1,51 @@
+# ForgeLink Prometheus Configuration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Django API
+  - job_name: 'forgelink-api'
+    static_configs:
+      - targets: ['forgelink-api:8000']
+    metrics_path: /metrics
+
+  # Spring IDP
+  - job_name: 'forgelink-idp'
+    static_configs:
+      - targets: ['forgelink-idp:8080']
+    metrics_path: /actuator/prometheus
+
+  # Spring Asset Service
+  - job_name: 'forgelink-asset-service'
+    static_configs:
+      - targets: ['forgelink-asset-service:8081']
+    metrics_path: /actuator/prometheus
+
+  # Spring Alert Service
+  - job_name: 'forgelink-alert-service'
+    static_configs:
+      - targets: ['forgelink-alert-service:8082']
+    metrics_path: /actuator/prometheus
+
+  # MQTT Bridge
+  - job_name: 'forgelink-mqtt-bridge'
+    static_configs:
+      - targets: ['forgelink-mqtt-bridge:8000']
+
+  # EMQX
+  - job_name: 'emqx'
+    static_configs:
+      - targets: ['emqx:18083']
+    metrics_path: /api/v5/prometheus/stats
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']

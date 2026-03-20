@@ -1,0 +1,420 @@
+version: "3.9"
+
+# ============================================
+# ForgeLink - Steel Factory IoT Platform
+# Docker Compose for Local Development
+# ============================================
+
+services:
+  # ==================== DATA LAYER ====================
+
+  # TDengine - Time-series database for telemetry
+  tdengine:
+    image: tdengine/tdengine:3.3.2.0
+    container_name: forgelink-tdengine
+    hostname: tdengine
+    ports:
+      - "6030:6030"   # Native connection
+      - "6041:6041"   # REST API (taosAdapter)
+      - "6043:6043"   # taosKeeper
+    environment:
+      TAOS_FQDN: tdengine
+    volumes:
+      - tdengine_data:/var/lib/taos
+      - tdengine_log:/var/log/taos
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD", "taos", "-s", "select server_version();"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # PostgreSQL - Relational database (all schemas)
+  postgres:
+    image: postgres:16-alpine
+    container_name: forgelink-postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_root_password
+      POSTGRES_MULTIPLE_DATABASES: forgelink,idp,assets,alerts
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis - Cache, sessions, Celery broker
+  redis:
+    image: redis:7-alpine
+    container_name: forgelink-redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== MESSAGING LAYER ====================
+
+  # Zookeeper - Required for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: forgelink-zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Kafka - High-throughput telemetry streaming
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: forgelink-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - forgelink-network
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # RabbitMQ - Commands and task queues
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: forgelink-rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: forgelink
+      RABBITMQ_DEFAULT_PASS: forgelink_rabbitmq_dev
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== MQTT / IoT LAYER ====================
+
+  # EMQX - MQTT 5.0 broker
+  emqx:
+    image: emqx/emqx:5.6.0
+    container_name: forgelink-emqx
+    hostname: emqx
+    ports:
+      - "1883:1883"    # MQTT
+      - "8083:8083"    # MQTT WebSocket
+      - "8084:8084"    # MQTT WSS
+      - "8883:8883"    # MQTT SSL
+      - "18083:18083"  # Dashboard
+    environment:
+      EMQX_NAME: forgelink-emqx
+      EMQX_HOST: 0.0.0.0
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: forgelink_emqx_admin
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== OBJECT STORAGE ====================
+
+  # MinIO - S3-compatible storage for backups and AI models
+  minio:
+    image: minio/minio:RELEASE.2024-03-15T01-07-19Z
+    container_name: forgelink-minio
+    hostname: minio
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: forgelink_minio
+      MINIO_ROOT_PASSWORD: forgelink_minio_secret
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - forgelink-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== APPLICATION SERVICES ====================
+
+  # Django API - Integration Hub
+  forgelink-api:
+    build:
+      context: ./services/django-api
+      dockerfile: Dockerfile
+    container_name: forgelink-api
+    hostname: forgelink-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+    volumes:
+      - ./services/django-api:/app
+    networks:
+      - forgelink-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      tdengine:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Spring IDP - Identity Provider
+  forgelink-idp:
+    build:
+      context: ./services/spring-idp
+      dockerfile: Dockerfile
+    container_name: forgelink-idp
+    hostname: forgelink-idp
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./secrets:/app/secrets:ro
+    networks:
+      - forgelink-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Spring Asset Service
+  forgelink-asset-service:
+    build:
+      context: ./services/spring-asset-service
+      dockerfile: Dockerfile
+    container_name: forgelink-asset-service
+    hostname: forgelink-asset-service
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    networks:
+      - forgelink-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      forgelink-idp:
+        condition: service_started
+    restart: unless-stopped
+
+  # Spring Alert Service
+  forgelink-alert-service:
+    build:
+      context: ./services/spring-alert-service
+      dockerfile: Dockerfile
+    container_name: forgelink-alert-service
+    hostname: forgelink-alert-service
+    ports:
+      - "8082:8082"
+    env_file:
+      - .env
+    networks:
+      - forgelink-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      forgelink-idp:
+        condition: service_started
+    restart: unless-stopped
+
+  # MQTT Bridge - MQTT to Kafka
+  forgelink-mqtt-bridge:
+    build:
+      context: ./services/mqtt-bridge
+      dockerfile: Dockerfile
+    container_name: forgelink-mqtt-bridge
+    hostname: forgelink-mqtt-bridge
+    env_file:
+      - .env
+    networks:
+      - forgelink-network
+    depends_on:
+      emqx:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ==================== OBSERVABILITY ====================
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: forgelink-prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - forgelink-network
+    restart: unless-stopped
+
+  # Grafana - Dashboards
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: forgelink-grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: forgelink_grafana_dev
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - forgelink-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Jaeger - Distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: forgelink-jaeger
+    hostname: jaeger
+    ports:
+      - "5775:5775/udp"   # Zipkin thrift
+      - "6831:6831/udp"   # Jaeger thrift
+      - "6832:6832/udp"   # Jaeger binary
+      - "5778:5778"       # Config
+      - "16686:16686"     # UI
+      - "14268:14268"     # HTTP collector
+      - "14250:14250"     # gRPC collector
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - forgelink-network
+    restart: unless-stopped
+
+# ==================== NETWORKS ====================
+
+networks:
+  forgelink-network:
+    driver: bridge
+    name: forgelink-network
+
+# ==================== VOLUMES ====================
+
+volumes:
+  tdengine_data:
+    name: forgelink-tdengine-data
+  tdengine_log:
+    name: forgelink-tdengine-log
+  postgres_data:
+    name: forgelink-postgres-data
+  redis_data:
+    name: forgelink-redis-data
+  zookeeper_data:
+    name: forgelink-zookeeper-data
+  zookeeper_log:
+    name: forgelink-zookeeper-log
+  kafka_data:
+    name: forgelink-kafka-data
+  rabbitmq_data:
+    name: forgelink-rabbitmq-data
+  emqx_data:
+    name: forgelink-emqx-data
+  emqx_log:
+    name: forgelink-emqx-log
+  minio_data:
+    name: forgelink-minio-data
+  prometheus_data:
+    name: forgelink-prometheus-data
+  grafana_data:
+    name: forgelink-grafana-data
