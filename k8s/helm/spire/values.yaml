@@ -1,0 +1,81 @@
+# SPIRE Helm Chart Values for ForgeLink
+# Zero-trust workload identity
+
+spire-server:
+  replicaCount: 1
+
+  image:
+    registry: ghcr.io
+    repository: spiffe/spire-server
+    tag: 1.9.0
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  trustDomain: forgelink.local
+
+  # Node attestation
+  nodeAttestor:
+    k8sPsat:
+      enabled: true
+      cluster: forgelink
+
+  # Data storage
+  dataStorage:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+
+  # CA configuration
+  ca:
+    keyType: rsa-2048
+    ttl: 24h
+
+  # Bundle endpoint
+  bundleEndpoint:
+    enabled: true
+    port: 8443
+
+spire-agent:
+  replicaCount: 1
+
+  image:
+    registry: ghcr.io
+    repository: spiffe/spire-agent
+    tag: 1.9.0
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Workload attestation
+  workloadAttestor:
+    k8s:
+      enabled: true
+    unix:
+      enabled: true
+
+  # Socket path for workloads
+  socketPath: /run/spire/sockets/agent.sock
+
+# SPIFFE CSI Driver
+spiffeCsiDriver:
+  enabled: true
+  image:
+    registry: ghcr.io
+    repository: spiffe/spiffe-csi-driver
+    tag: 0.2.6
+
+# Workload registrar
+workloadRegistrar:
+  enabled: true
+  mode: webhook

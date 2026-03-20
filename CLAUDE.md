@@ -178,24 +178,36 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 
 ## Build Progress
 
-### Phase 1 — Foundation ✅ IN PROGRESS
+### Phase 1 — Foundation ✅ COMPLETE
 - [x] CLAUDE.md
-- [ ] README.md
-- [ ] .gitignore
-- [ ] .env.example
-- [ ] docker-compose.yml
-- [ ] docker-compose.override.yml
-- [ ] Django API scaffold
-- [ ] Spring IDP scaffold
-- [ ] Spring Asset Service scaffold
-- [ ] Spring Alert Service scaffold
-- [ ] MQTT Bridge scaffold
-- [ ] K8s base structure
-- [ ] Docs structure
-- [ ] scripts/setup-dev.sh
-- [ ] Git init
+- [x] README.md
+- [x] .gitignore
+- [x] .env.example
+- [x] docker-compose.yml (15 services)
+- [x] docker-compose.override.yml
+- [x] Django API scaffold (6 apps)
+- [x] Spring IDP scaffold
+- [x] Spring Asset Service scaffold
+- [x] Spring Alert Service scaffold
+- [x] MQTT Bridge scaffold
+- [x] K8s base structure
+- [x] Docs structure
+- [x] scripts/setup-dev.sh
+- [x] Git init
 
-### Phase 2 — Zero Trust Identity (pending)
+### Phase 2 — Zero Trust Identity ✅ COMPLETE
+- [x] Spring IDP User model + repository
+- [x] Spring IDP JWT service (RS256 signing)
+- [x] Spring IDP auth controller (login, refresh, logout)
+- [x] Spring IDP JWKS endpoint
+- [x] Spring IDP Flyway migrations
+- [x] Spring IDP seed admin user
+- [x] Django JWT middleware (JWKS validation)
+- [x] Django permission classes (RBAC)
+- [x] Django decorators (@require_roles)
+- [x] SPIFFE/SPIRE K8s manifests
+- [x] IDP unit tests
+
 ### Phase 3 — UNS/MQTT Layer (pending)
 ### Phase 4 — Django API (pending)
 ### Phase 5 — Spring Boot Microservices (pending)
@@ -203,6 +215,36 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 ### Phase 7 — Kubernetes Deployment (pending)
 ### Phase 8 — CI/CD (pending)
 ### Phase 9 — Slack Bot (pending)
+
+---
+
+## IDP Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/login` | Email/password → JWT + refresh token |
+| POST | `/auth/refresh` | Refresh token → new JWT |
+| POST | `/auth/logout` | Revoke refresh token |
+| GET | `/auth/jwks` | Public key (JWKS format) |
+| GET | `/auth/validate` | Token introspection |
+
+## RBAC Roles
+
+| Role | Permissions |
+|------|-------------|
+| `FACTORY_ADMIN` | Full access |
+| `PLANT_OPERATOR` | Read all, write alerts/commands |
+| `TECHNICIAN` | Read own area, acknowledge alerts |
+| `VIEWER` | Read-only |
+
+## Demo Users (seeded)
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@forgelink.local | Admin@ForgeLink2026! | FACTORY_ADMIN |
+| operator@forgelink.local | Admin@ForgeLink2026! | PLANT_OPERATOR |
+| tech@forgelink.local | Admin@ForgeLink2026! | TECHNICIAN |
+| viewer@forgelink.local | Admin@ForgeLink2026! | VIEWER |
 
 ---
 
@@ -225,4 +267,4 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 
 ---
 
-*Last updated: 2026-03-20 | Phase 1 in progress*
+*Last updated: 2026-03-20 | Phase 2 complete*
