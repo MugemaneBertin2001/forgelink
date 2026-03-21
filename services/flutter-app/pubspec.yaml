@@ -56,7 +56,7 @@ dev_dependencies:
   # Code generation
   build_runner: ^2.4.11
   riverpod_generator: ^2.4.0
-  retrofit_generator: ^8.1.0
+  retrofit_generator: ^9.7.0
   json_serializable: ^6.8.0
   freezed: ^2.5.2
 
