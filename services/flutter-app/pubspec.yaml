@@ -32,7 +32,7 @@ dependencies:
   shared_preferences: ^2.2.3
 
   # UI Components
-  fl_chart: ^0.68.0
+  fl_chart: ^1.2.0
   shimmer: ^3.0.0
   cached_network_image: ^3.3.1
   flutter_svg: ^2.0.10+1
