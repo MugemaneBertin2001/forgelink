@@ -1,49 +1,56 @@
 """GraphQL schema for telemetry data."""
-import graphene
-from graphene import ObjectType, Field, List, String, Float, Int, DateTime, Argument, Enum
-from datetime import datetime, timezone
 
-from .services import TelemetryService, TimeRange, AggregationInterval
+from datetime import datetime
+
+from graphene import DateTime, Enum, Field, Float, Int, List, ObjectType, String
+
+from .services import AggregationInterval, TelemetryService, TimeRange
 
 
 class TimeRangeEnum(Enum):
     """Time range options for queries."""
-    LAST_HOUR = '1h'
-    LAST_6_HOURS = '6h'
-    LAST_24_HOURS = '24h'
-    LAST_7_DAYS = '7d'
-    LAST_30_DAYS = '30d'
+
+    LAST_HOUR = "1h"
+    LAST_6_HOURS = "6h"
+    LAST_24_HOURS = "24h"
+    LAST_7_DAYS = "7d"
+    LAST_30_DAYS = "30d"
 
 
 class AggregationIntervalEnum(Enum):
     """Aggregation interval options."""
-    RAW = 'raw'
-    ONE_MINUTE = '1m'
-    FIVE_MINUTES = '5m'
-    FIFTEEN_MINUTES = '15m'
-    ONE_HOUR = '1h'
-    ONE_DAY = '1d'
+
+    RAW = "raw"
+    ONE_MINUTE = "1m"
+    FIVE_MINUTES = "5m"
+    FIFTEEN_MINUTES = "15m"
+    ONE_HOUR = "1h"
+    ONE_DAY = "1d"
 
 
 class QualityEnum(Enum):
     """Data quality indicators."""
-    GOOD = 'good'
-    BAD = 'bad'
-    UNCERTAIN = 'uncertain'
+
+    GOOD = "good"
+    BAD = "bad"
+    UNCERTAIN = "uncertain"
 
 
 class AnomalyTypeEnum(Enum):
     """Anomaly type indicators."""
-    HIGH = 'high'
-    LOW = 'low'
+
+    HIGH = "high"
+    LOW = "low"
 
 
 # ============================================
 # Telemetry Types
 # ============================================
 
+
 class TelemetryPointType(ObjectType):
     """Single telemetry data point."""
+
     timestamp = DateTime(description="Point timestamp")
     value = Float(description="Sensor value")
     quality = String(description="Data quality (good/bad/uncertain)")
@@ -51,14 +58,15 @@ class TelemetryPointType(ObjectType):
 
     @staticmethod
     def resolve_timestamp(root, info):
-        ts = root.get('ts') or root.get('timestamp')
+        ts = root.get("ts") or root.get("timestamp")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
 
 class AggregatedTelemetryType(ObjectType):
     """Aggregated telemetry data."""
+
     timestamp = DateTime(description="Bucket timestamp")
     avg_value = Float(description="Average value")
     min_value = Float(description="Minimum value")
@@ -67,14 +75,15 @@ class AggregatedTelemetryType(ObjectType):
 
     @staticmethod
     def resolve_timestamp(root, info):
-        ts = root.get('ts') or root.get('timestamp')
+        ts = root.get("ts") or root.get("timestamp")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
 
 class DeviceLatestType(ObjectType):
     """Latest value for a device."""
+
     device_id = String(description="Device identifier")
     timestamp = DateTime(description="Last update time")
     value = Float(description="Current value")
@@ -84,14 +93,15 @@ class DeviceLatestType(ObjectType):
 
     @staticmethod
     def resolve_timestamp(root, info):
-        ts = root.get('ts') or root.get('last_ts')
+        ts = root.get("ts") or root.get("last_ts")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
 
 class DeviceStatisticsType(ObjectType):
     """Device statistics over a time period."""
+
     device_id = String(description="Device identifier")
     period = String(description="Statistics period")
     avg_value = Float(description="Average value")
@@ -104,21 +114,22 @@ class DeviceStatisticsType(ObjectType):
 
     @staticmethod
     def resolve_first_timestamp(root, info):
-        ts = root.get('first_ts')
+        ts = root.get("first_ts")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
     @staticmethod
     def resolve_last_timestamp(root, info):
-        ts = root.get('last_ts')
+        ts = root.get("last_ts")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
 
 class AnomalyType(ObjectType):
     """Detected anomaly."""
+
     timestamp = DateTime(description="Anomaly timestamp")
     value = Float(description="Anomalous value")
     quality = String(description="Data quality")
@@ -127,9 +138,9 @@ class AnomalyType(ObjectType):
 
     @staticmethod
     def resolve_timestamp(root, info):
-        ts = root.get('ts') or root.get('timestamp')
+        ts = root.get("ts") or root.get("timestamp")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
 
@@ -137,8 +148,10 @@ class AnomalyType(ObjectType):
 # Area & Plant Types
 # ============================================
 
+
 class DeviceSummaryType(ObjectType):
     """Device summary in area overview."""
+
     device_id = String()
     device_type = String()
     unit = String()
@@ -149,14 +162,15 @@ class DeviceSummaryType(ObjectType):
 
     @staticmethod
     def resolve_last_timestamp(root, info):
-        ts = root.get('last_ts')
+        ts = root.get("last_ts")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
 
 class AreaOverviewType(ObjectType):
     """Overview of an area."""
+
     area = String(description="Area name")
     total_devices = Int(description="Total device count")
     online = Int(description="Devices online (good quality)")
@@ -167,6 +181,7 @@ class AreaOverviewType(ObjectType):
 
 class AreaStatusType(ObjectType):
     """Area status in plant dashboard."""
+
     total = Int()
     online = Int()
     warning = Int()
@@ -175,6 +190,7 @@ class AreaStatusType(ObjectType):
 
 class PlantTotalsType(ObjectType):
     """Plant-wide totals."""
+
     devices = Int()
     online = Int()
     warning = Int()
@@ -183,6 +199,7 @@ class PlantTotalsType(ObjectType):
 
 class PlantDashboardType(ObjectType):
     """Plant-wide dashboard data."""
+
     timestamp = DateTime(description="Dashboard timestamp")
     melt_shop = Field(AreaStatusType)
     continuous_casting = Field(AreaStatusType)
@@ -192,34 +209,36 @@ class PlantDashboardType(ObjectType):
 
     @staticmethod
     def resolve_timestamp(root, info):
-        ts = root.get('timestamp')
+        ts = root.get("timestamp")
         if isinstance(ts, str):
-            return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return ts
 
     @staticmethod
     def resolve_melt_shop(root, info):
-        return root.get('areas', {}).get('melt-shop')
+        return root.get("areas", {}).get("melt-shop")
 
     @staticmethod
     def resolve_continuous_casting(root, info):
-        return root.get('areas', {}).get('continuous-casting')
+        return root.get("areas", {}).get("continuous-casting")
 
     @staticmethod
     def resolve_rolling_mill(root, info):
-        return root.get('areas', {}).get('rolling-mill')
+        return root.get("areas", {}).get("rolling-mill")
 
     @staticmethod
     def resolve_finishing(root, info):
-        return root.get('areas', {}).get('finishing')
+        return root.get("areas", {}).get("finishing")
 
 
 # ============================================
 # Device History Response
 # ============================================
 
+
 class DeviceHistoryType(ObjectType):
     """Device history response."""
+
     device_id = String()
     count = Int()
     data = List(TelemetryPointType)
@@ -227,12 +246,14 @@ class DeviceHistoryType(ObjectType):
 
 class MultiDeviceLatestType(ObjectType):
     """Multiple device latest values response."""
+
     count = Int()
     data = List(DeviceLatestType)
 
 
 class AnomalyDetectionType(ObjectType):
     """Anomaly detection response."""
+
     device_id = String()
     count = Int()
     anomalies = List(AnomalyType)
@@ -240,6 +261,7 @@ class AnomalyDetectionType(ObjectType):
 
 class DeviceComparisonType(ObjectType):
     """Device comparison data."""
+
     device_id = String()
     data = List(AggregatedTelemetryType)
 
@@ -247,6 +269,7 @@ class DeviceComparisonType(ObjectType):
 # ============================================
 # Query Type
 # ============================================
+
 
 class TelemetryQuery(ObjectType):
     """Telemetry GraphQL queries."""
@@ -260,28 +283,30 @@ class TelemetryQuery(ObjectType):
         end_time=DateTime(description="End time (ISO format)"),
         interval=AggregationIntervalEnum(description="Aggregation interval"),
         limit=Int(default_value=10000, description="Max records"),
-        description="Get historical telemetry for a device"
+        description="Get historical telemetry for a device",
     )
 
     device_latest = Field(
         DeviceLatestType,
         device_id=String(required=True, description="Device ID"),
-        description="Get latest value for a device"
+        description="Get latest value for a device",
     )
 
     device_statistics = Field(
         DeviceStatisticsType,
         device_id=String(required=True, description="Device ID"),
         period=String(default_value="24h", description="Period: 1h, 6h, 24h, 7d, 30d"),
-        description="Get statistics for a device"
+        description="Get statistics for a device",
     )
 
     device_anomalies = Field(
         AnomalyDetectionType,
         device_id=String(required=True, description="Device ID"),
         period=String(default_value="24h", description="Period: 1h, 6h, 24h, 7d"),
-        std_threshold=Float(default_value=3.0, description="Standard deviations threshold"),
-        description="Detect anomalies for a device"
+        std_threshold=Float(
+            default_value=3.0, description="Standard deviations threshold"
+        ),
+        description="Detect anomalies for a device",
     )
 
     # Multi-device queries
@@ -289,7 +314,7 @@ class TelemetryQuery(ObjectType):
         MultiDeviceLatestType,
         device_ids=List(String, description="List of device IDs"),
         area=String(description="Filter by area"),
-        description="Get latest values for multiple devices"
+        description="Get latest values for multiple devices",
     )
 
     compare_devices = List(
@@ -298,46 +323,53 @@ class TelemetryQuery(ObjectType):
         start_time=DateTime(required=True, description="Start time"),
         end_time=DateTime(required=True, description="End time"),
         interval=String(default_value="1h", description="Aggregation interval"),
-        description="Compare multiple devices over a time range"
+        description="Compare multiple devices over a time range",
     )
 
     # Area queries
     area_overview = Field(
         AreaOverviewType,
         area=String(required=True, description="Area name"),
-        description="Get overview of devices in an area"
+        description="Get overview of devices in an area",
     )
 
     # Plant queries
     plant_dashboard = Field(
-        PlantDashboardType,
-        description="Get plant-wide dashboard data"
+        PlantDashboardType, description="Get plant-wide dashboard data"
     )
 
     # Resolvers
     @staticmethod
-    def resolve_device_history(root, info, device_id, time_range=None, start_time=None,
-                               end_time=None, interval=None, limit=10000):
+    def resolve_device_history(
+        root,
+        info,
+        device_id,
+        time_range=None,
+        start_time=None,
+        end_time=None,
+        interval=None,
+        limit=10000,
+    ):
         # Map enums to service enums
         tr = None
         if time_range:
             tr_map = {
-                '1h': TimeRange.LAST_HOUR,
-                '6h': TimeRange.LAST_6_HOURS,
-                '24h': TimeRange.LAST_24_HOURS,
-                '7d': TimeRange.LAST_7_DAYS,
-                '30d': TimeRange.LAST_30_DAYS,
+                "1h": TimeRange.LAST_HOUR,
+                "6h": TimeRange.LAST_6_HOURS,
+                "24h": TimeRange.LAST_24_HOURS,
+                "7d": TimeRange.LAST_7_DAYS,
+                "30d": TimeRange.LAST_30_DAYS,
             }
             tr = tr_map.get(time_range)
 
         intv = None
-        if interval and interval != 'raw':
+        if interval and interval != "raw":
             intv_map = {
-                '1m': AggregationInterval.ONE_MINUTE,
-                '5m': AggregationInterval.FIVE_MINUTES,
-                '15m': AggregationInterval.FIFTEEN_MINUTES,
-                '1h': AggregationInterval.ONE_HOUR,
-                '1d': AggregationInterval.ONE_DAY,
+                "1m": AggregationInterval.ONE_MINUTE,
+                "5m": AggregationInterval.FIVE_MINUTES,
+                "15m": AggregationInterval.FIFTEEN_MINUTES,
+                "1h": AggregationInterval.ONE_HOUR,
+                "1d": AggregationInterval.ONE_DAY,
             }
             intv = intv_map.get(interval)
 
@@ -347,54 +379,45 @@ class TelemetryQuery(ObjectType):
             end_time=end_time,
             time_range=tr,
             interval=intv,
-            limit=limit
+            limit=limit,
         )
 
-        return {
-            'device_id': device_id,
-            'count': len(data),
-            'data': data
-        }
+        return {"device_id": device_id, "count": len(data), "data": data}
 
     @staticmethod
     def resolve_device_latest(root, info, device_id):
         return TelemetryService.get_latest_value(device_id)
 
     @staticmethod
-    def resolve_device_statistics(root, info, device_id, period='24h'):
+    def resolve_device_statistics(root, info, device_id, period="24h"):
         return TelemetryService.get_device_statistics(device_id, period)
 
     @staticmethod
-    def resolve_device_anomalies(root, info, device_id, period='24h', std_threshold=3.0):
+    def resolve_device_anomalies(
+        root, info, device_id, period="24h", std_threshold=3.0
+    ):
         anomalies = TelemetryService.detect_anomalies(
-            device_id=device_id,
-            period=period,
-            std_threshold=std_threshold
+            device_id=device_id, period=period, std_threshold=std_threshold
         )
-        return {
-            'device_id': device_id,
-            'count': len(anomalies),
-            'anomalies': anomalies
-        }
+        return {"device_id": device_id, "count": len(anomalies), "anomalies": anomalies}
 
     @staticmethod
     def resolve_latest_values(root, info, device_ids=None, area=None):
         data = TelemetryService.get_latest_values(device_ids=device_ids, area=area)
-        return {
-            'count': len(data),
-            'data': data
-        }
+        return {"count": len(data), "data": data}
 
     @staticmethod
-    def resolve_compare_devices(root, info, device_ids, start_time, end_time, interval='1h'):
+    def resolve_compare_devices(
+        root, info, device_ids, start_time, end_time, interval="1h"
+    ):
         data = TelemetryService.compare_devices(
             device_ids=device_ids,
             start_time=start_time,
             end_time=end_time,
-            interval=interval
+            interval=interval,
         )
         return [
-            {'device_id': device_id, 'data': points}
+            {"device_id": device_id, "data": points}
             for device_id, points in data.items()
         ]
 

@@ -3,7 +3,7 @@ ForgeLink Django Settings
 
 Steel Factory IoT Platform - Django Integration Hub
 """
-import os
+
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
@@ -86,7 +86,6 @@ INSTALLED_APPS = [
     "unfold",
     "unfold.contrib.filters",
     "unfold.contrib.forms",
-
     # Django
     "django.contrib.admin",
     "django.contrib.auth",
@@ -94,7 +93,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     # Third-party
     "rest_framework",
     "corsheaders",
@@ -103,7 +101,6 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "django_celery_results",
     "django_prometheus",
-
     # ForgeLink apps
     "apps.core",
     "apps.assets",
@@ -162,9 +159,7 @@ DATABASES = {
         "PASSWORD": env.db_password,
         "HOST": env.db_host,
         "PORT": env.db_port,
-        "OPTIONS": {
-            "options": "-c search_path=forgelink,public"
-        },
+        "OPTIONS": {"options": "-c search_path=forgelink,public"},
     }
 }
 
@@ -185,7 +180,7 @@ CACHES = {
         "LOCATION": f"redis://{redis_password_part}{env.redis_host}:{env.redis_port}/{env.redis_django_db}",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
+        },
     }
 }
 
@@ -195,8 +190,13 @@ SESSION_CACHE_ALIAS = "default"
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]

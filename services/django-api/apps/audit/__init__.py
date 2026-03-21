@@ -1,2 +1,2 @@
 # ForgeLink Audit App
-default_app_config = 'apps.audit.apps.AuditConfig'
+default_app_config = "apps.audit.apps.AuditConfig"

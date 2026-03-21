@@ -6,9 +6,10 @@ Allows factory admins to:
 - Create custom roles by combining permissions
 - Modify existing custom roles
 """
+
 from django.contrib import admin
+
 from unfold.admin import ModelAdmin
-from unfold.contrib.filters.admin import RangeDateFilter
 
 from .models import Permission, Role
 
@@ -22,13 +23,13 @@ class PermissionAdmin(ModelAdmin):
     They are created via migrations when new features are added.
     """
 
-    list_display = ['code', 'name', 'module', 'description_short']
-    list_filter = ['module']
-    search_fields = ['code', 'name', 'description']
-    ordering = ['module', 'sort_order', 'code']
+    list_display = ["code", "name", "module", "description_short"]
+    list_filter = ["module"]
+    search_fields = ["code", "name", "description"]
+    ordering = ["module", "sort_order", "code"]
 
     # Permissions are read-only
-    readonly_fields = ['id', 'code', 'name', 'description', 'module', 'sort_order']
+    readonly_fields = ["id", "code", "name", "description", "module", "sort_order"]
 
     def has_add_permission(self, request):
         return False
@@ -39,10 +40,10 @@ class PermissionAdmin(ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-    @admin.display(description='Description')
+    @admin.display(description="Description")
     def description_short(self, obj):
         if len(obj.description) > 50:
-            return obj.description[:50] + '...'
+            return obj.description[:50] + "..."
         return obj.description
 
 
@@ -57,30 +58,36 @@ class RoleAdmin(ModelAdmin):
     - Cannot delete system roles
     """
 
-    list_display = ['code', 'name', 'permission_count', 'is_system', 'is_active', 'updated_at']
-    list_filter = ['is_system', 'is_active']
-    search_fields = ['code', 'name', 'description']
-    ordering = ['name']
+    list_display = [
+        "code",
+        "name",
+        "permission_count",
+        "is_system",
+        "is_active",
+        "updated_at",
+    ]
+    list_filter = ["is_system", "is_active"]
+    search_fields = ["code", "name", "description"]
+    ordering = ["name"]
 
-    readonly_fields = ['id', 'created_at', 'updated_at']
+    readonly_fields = ["id", "created_at", "updated_at"]
 
-    filter_horizontal = ['permissions']
+    filter_horizontal = ["permissions"]
 
     fieldsets = (
-        (None, {
-            'fields': ('code', 'name', 'description')
-        }),
-        ('Permissions', {
-            'fields': ('permissions',),
-            'description': 'Select permissions granted by this role'
-        }),
-        ('Status', {
-            'fields': ('is_active', 'is_system')
-        }),
-        ('Metadata', {
-            'fields': ('id', 'created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
+        (None, {"fields": ("code", "name", "description")}),
+        (
+            "Permissions",
+            {
+                "fields": ("permissions",),
+                "description": "Select permissions granted by this role",
+            },
+        ),
+        ("Status", {"fields": ("is_active", "is_system")}),
+        (
+            "Metadata",
+            {"fields": ("id", "created_at", "updated_at"), "classes": ("collapse",)},
+        ),
     )
 
     def has_delete_permission(self, request, obj=None):
@@ -93,11 +100,11 @@ class RoleAdmin(ModelAdmin):
         readonly = list(self.readonly_fields)
         if obj and obj.is_system:
             # System roles cannot have their code changed
-            readonly.append('code')
-            readonly.append('is_system')
+            readonly.append("code")
+            readonly.append("is_system")
         return readonly
 
-    @admin.display(description='Permissions')
+    @admin.display(description="Permissions")
     def permission_count(self, obj):
         count = obj.permissions.count()
         return f"{count} permissions"

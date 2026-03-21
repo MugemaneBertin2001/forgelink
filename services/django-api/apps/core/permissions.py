@@ -5,18 +5,18 @@ Permission-based access control:
 - Check specific permissions like 'alerts.acknowledge'
 - Not role-based (roles are just groups of permissions)
 """
+
 from rest_framework.permissions import BasePermission
 
 
 class IsAuthenticated(BasePermission):
     """Check if user has valid JWT token."""
+
     message = "Authentication required."
 
     def has_permission(self, request, view):
         return (
-            hasattr(request, 'user') and
-            request.user and
-            request.user.is_authenticated
+            hasattr(request, "user") and request.user and request.user.is_authenticated
         )
 
 
@@ -29,13 +29,14 @@ class HasPermission(BasePermission):
             permission_classes = [HasPermission]
             required_permission = 'alerts.acknowledge'
     """
+
     message = "Permission denied."
 
     def has_permission(self, request, view):
-        if not hasattr(request, 'user') or not request.user:
+        if not hasattr(request, "user") or not request.user:
             return False
 
-        required = getattr(view, 'required_permission', None)
+        required = getattr(view, "required_permission", None)
         if not required:
             return True
 
@@ -51,13 +52,14 @@ class HasAnyPermission(BasePermission):
             permission_classes = [HasAnyPermission]
             required_permissions = ['alerts.acknowledge', 'alerts.resolve']
     """
+
     message = "Permission denied."
 
     def has_permission(self, request, view):
-        if not hasattr(request, 'user') or not request.user:
+        if not hasattr(request, "user") or not request.user:
             return False
 
-        required = getattr(view, 'required_permissions', [])
+        required = getattr(view, "required_permissions", [])
         if not required:
             return True
 
@@ -73,13 +75,14 @@ class HasAllPermissions(BasePermission):
             permission_classes = [HasAllPermissions]
             required_permissions = ['alerts.view', 'alerts.acknowledge']
     """
+
     message = "Permission denied."
 
     def has_permission(self, request, view):
-        if not hasattr(request, 'user') or not request.user:
+        if not hasattr(request, "user") or not request.user:
             return False
 
-        required = getattr(view, 'required_permissions', [])
+        required = getattr(view, "required_permissions", [])
         if not required:
             return True
 
@@ -90,147 +93,160 @@ class HasAllPermissions(BasePermission):
 # Common Permission Shortcuts
 # =============================================================================
 
+
 class CanViewAssets(BasePermission):
     """Permission to view assets."""
+
     message = "Assets view permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('assets.view')
+        return request.user.has_permission("assets.view")
 
 
 class CanManageAssets(BasePermission):
     """Permission to create/update/delete assets."""
+
     message = "Assets management permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
 
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
-            return request.user.has_permission('assets.view')
-        elif request.method == 'POST':
-            return request.user.has_permission('assets.create')
-        elif request.method in ['PUT', 'PATCH']:
-            return request.user.has_permission('assets.update')
-        elif request.method == 'DELETE':
-            return request.user.has_permission('assets.delete')
+        if request.method in ["GET", "HEAD", "OPTIONS"]:
+            return request.user.has_permission("assets.view")
+        elif request.method == "POST":
+            return request.user.has_permission("assets.create")
+        elif request.method in ["PUT", "PATCH"]:
+            return request.user.has_permission("assets.update")
+        elif request.method == "DELETE":
+            return request.user.has_permission("assets.delete")
 
         return False
 
 
 class CanViewAlerts(BasePermission):
     """Permission to view alerts."""
+
     message = "Alerts view permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('alerts.view')
+        return request.user.has_permission("alerts.view")
 
 
 class CanAcknowledgeAlerts(BasePermission):
     """Permission to acknowledge alerts."""
+
     message = "Alert acknowledgement permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('alerts.acknowledge')
+        return request.user.has_permission("alerts.acknowledge")
 
 
 class CanResolveAlerts(BasePermission):
     """Permission to resolve alerts."""
+
     message = "Alert resolution permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('alerts.resolve')
+        return request.user.has_permission("alerts.resolve")
 
 
 class CanManageAlertRules(BasePermission):
     """Permission to manage alert rules."""
+
     message = "Alert rule management permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
 
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
-            return request.user.has_permission('alerts.view')
-        elif request.method == 'POST':
-            return request.user.has_permission('alerts.create_rule')
-        elif request.method in ['PUT', 'PATCH']:
-            return request.user.has_permission('alerts.update_rule')
-        elif request.method == 'DELETE':
-            return request.user.has_permission('alerts.delete_rule')
+        if request.method in ["GET", "HEAD", "OPTIONS"]:
+            return request.user.has_permission("alerts.view")
+        elif request.method == "POST":
+            return request.user.has_permission("alerts.create_rule")
+        elif request.method in ["PUT", "PATCH"]:
+            return request.user.has_permission("alerts.update_rule")
+        elif request.method == "DELETE":
+            return request.user.has_permission("alerts.delete_rule")
 
         return False
 
 
 class CanViewTelemetry(BasePermission):
     """Permission to view telemetry data."""
+
     message = "Telemetry view permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('telemetry.view')
+        return request.user.has_permission("telemetry.view")
 
 
 class CanExportTelemetry(BasePermission):
     """Permission to export telemetry data."""
+
     message = "Telemetry export permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('telemetry.export')
+        return request.user.has_permission("telemetry.export")
 
 
 class CanControlSimulator(BasePermission):
     """Permission to control simulator."""
+
     message = "Simulator control permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
 
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
-            return request.user.has_permission('simulator.view')
+        if request.method in ["GET", "HEAD", "OPTIONS"]:
+            return request.user.has_permission("simulator.view")
 
-        return request.user.has_permission('simulator.control')
+        return request.user.has_permission("simulator.control")
 
 
 class CanManageUsers(BasePermission):
     """Permission to manage users."""
+
     message = "User management permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
-        return request.user.has_permission('admin.manage_users')
+        return request.user.has_permission("admin.manage_users")
 
 
 class CanManageRoles(BasePermission):
     """Permission to manage roles."""
+
     message = "Role management permission required."
 
     def has_permission(self, request, view):
         if not request.user:
             return False
 
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
-            return request.user.has_permission('admin.view_roles')
+        if request.method in ["GET", "HEAD", "OPTIONS"]:
+            return request.user.has_permission("admin.view_roles")
 
-        return request.user.has_permission('admin.manage_roles')
+        return request.user.has_permission("admin.manage_roles")
 
 
 # =============================================================================
 # Area-based Access Control
 # =============================================================================
+
 
 class AreaAccessPermission(BasePermission):
     """
@@ -238,6 +254,7 @@ class AreaAccessPermission(BasePermission):
 
     Works with objects that have an area relationship.
     """
+
     message = "Access to this area is not allowed."
 
     def has_object_permission(self, request, view, obj):
@@ -250,11 +267,11 @@ class AreaAccessPermission(BasePermission):
 
         # Get area code from object
         area_code = None
-        if hasattr(obj, 'area_code'):
+        if hasattr(obj, "area_code"):
             area_code = obj.area_code
-        elif hasattr(obj, 'area'):
-            area_code = obj.area.code if hasattr(obj.area, 'code') else obj.area
-        elif hasattr(obj, 'device'):
+        elif hasattr(obj, "area"):
+            area_code = obj.area.code if hasattr(obj.area, "code") else obj.area
+        elif hasattr(obj, "device"):
             # Traverse device -> cell -> line -> area
             try:
                 area_code = obj.device.cell.line.area.code

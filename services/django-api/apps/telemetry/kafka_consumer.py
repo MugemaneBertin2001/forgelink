@@ -4,20 +4,20 @@ Kafka consumer for telemetry data ingestion.
 Consumes telemetry messages from Kafka topics and writes them to TDengine.
 Designed to run as a separate process alongside Django.
 """
+
 import json
 import logging
 import signal
-import sys
 import time
-from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
-from confluent_kafka import Consumer, KafkaError, KafkaException
 from django.conf import settings
 
-from .tdengine import insert_telemetry_batch, get_tdengine_client
-from .services import TelemetryService
+from confluent_kafka import Consumer, KafkaError, KafkaException
+
+from .tdengine import insert_telemetry_batch
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TelemetryMessage:
     """Parsed telemetry message from Kafka."""
+
     device_id: str
     value: float
     quality: str
@@ -39,16 +40,16 @@ class TelemetryMessage:
     def to_record(self) -> Dict[str, Any]:
         """Convert to TDengine record format."""
         return {
-            'device_id': self.device_id,
-            'ts': self.timestamp,
-            'value': self.value,
-            'quality': self.quality,
-            'plant': self.plant,
-            'area': self.area,
-            'line': self.line or '',
-            'cell': self.cell or '',
-            'unit': self.unit or '',
-            'sequence': self.sequence,
+            "device_id": self.device_id,
+            "ts": self.timestamp,
+            "value": self.value,
+            "quality": self.quality,
+            "plant": self.plant,
+            "area": self.area,
+            "line": self.line or "",
+            "cell": self.cell or "",
+            "unit": self.unit or "",
+            "sequence": self.sequence,
         }
 
 
@@ -62,7 +63,7 @@ class TelemetryKafkaConsumer:
     def __init__(
         self,
         bootstrap_servers: str = None,
-        group_id: str = 'forgelink-telemetry-consumer',
+        group_id: str = "forgelink-telemetry-consumer",
         topics: List[str] = None,
         batch_size: int = 500,
         batch_timeout_ms: int = 1000,
@@ -70,10 +71,10 @@ class TelemetryKafkaConsumer:
         self.bootstrap_servers = bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
         self.group_id = group_id
         self.topics = topics or [
-            'telemetry.melt-shop',
-            'telemetry.continuous-casting',
-            'telemetry.rolling-mill',
-            'telemetry.finishing',
+            "telemetry.melt-shop",
+            "telemetry.continuous-casting",
+            "telemetry.rolling-mill",
+            "telemetry.finishing",
         ]
         self.batch_size = batch_size
         self.batch_timeout_ms = batch_timeout_ms
@@ -85,83 +86,90 @@ class TelemetryKafkaConsumer:
 
         # Statistics
         self.stats = {
-            'messages_received': 0,
-            'messages_processed': 0,
-            'batches_written': 0,
-            'errors': 0,
-            'start_time': None,
+            "messages_received": 0,
+            "messages_processed": 0,
+            "batches_written": 0,
+            "errors": 0,
+            "start_time": None,
         }
 
     def create_consumer(self) -> Consumer:
         """Create Kafka consumer instance."""
         config = {
-            'bootstrap.servers': self.bootstrap_servers,
-            'group.id': self.group_id,
-            'auto.offset.reset': 'latest',
-            'enable.auto.commit': True,
-            'auto.commit.interval.ms': 5000,
-            'session.timeout.ms': 30000,
-            'max.poll.interval.ms': 300000,
-            'fetch.min.bytes': 1,
-            'fetch.wait.max.ms': 500,
+            "bootstrap.servers": self.bootstrap_servers,
+            "group.id": self.group_id,
+            "auto.offset.reset": "latest",
+            "enable.auto.commit": True,
+            "auto.commit.interval.ms": 5000,
+            "session.timeout.ms": 30000,
+            "max.poll.interval.ms": 300000,
+            "fetch.min.bytes": 1,
+            "fetch.wait.max.ms": 500,
         }
 
         # Add security config if present
-        security_protocol = getattr(settings, 'KAFKA_SECURITY_PROTOCOL', None)
+        security_protocol = getattr(settings, "KAFKA_SECURITY_PROTOCOL", None)
         if security_protocol:
-            config['security.protocol'] = security_protocol
+            config["security.protocol"] = security_protocol
 
-        sasl_mechanism = getattr(settings, 'KAFKA_SASL_MECHANISM', None)
+        sasl_mechanism = getattr(settings, "KAFKA_SASL_MECHANISM", None)
         if sasl_mechanism:
-            config['sasl.mechanism'] = sasl_mechanism
-            config['sasl.username'] = getattr(settings, 'KAFKA_SASL_USERNAME', '')
-            config['sasl.password'] = getattr(settings, 'KAFKA_SASL_PASSWORD', '')
+            config["sasl.mechanism"] = sasl_mechanism
+            config["sasl.username"] = getattr(settings, "KAFKA_SASL_USERNAME", "")
+            config["sasl.password"] = getattr(settings, "KAFKA_SASL_PASSWORD", "")
 
         return Consumer(config)
 
     def parse_message(self, msg_value: bytes) -> Optional[TelemetryMessage]:
         """Parse Kafka message to TelemetryMessage."""
         try:
-            data = json.loads(msg_value.decode('utf-8'))
+            data = json.loads(msg_value.decode("utf-8"))
 
             # Handle different message formats
             # Format 1: Direct telemetry
-            if 'device_id' in data:
+            if "device_id" in data:
                 return TelemetryMessage(
-                    device_id=data['device_id'],
-                    value=float(data['value']),
-                    quality=data.get('quality', 'good'),
-                    timestamp=data.get('ts') or data.get('timestamp') or datetime.now(timezone.utc).isoformat(),
-                    plant=data.get('plant', 'steel-plant-kigali'),
-                    area=data.get('area', ''),
-                    line=data.get('line'),
-                    cell=data.get('cell'),
-                    unit=data.get('unit'),
-                    sequence=data.get('sequence', 0),
+                    device_id=data["device_id"],
+                    value=float(data["value"]),
+                    quality=data.get("quality", "good"),
+                    timestamp=data.get("ts")
+                    or data.get("timestamp")
+                    or datetime.now(timezone.utc).isoformat(),
+                    plant=data.get("plant", "steel-plant-kigali"),
+                    area=data.get("area", ""),
+                    line=data.get("line"),
+                    cell=data.get("cell"),
+                    unit=data.get("unit"),
+                    sequence=data.get("sequence", 0),
                 )
 
             # Format 2: UNS payload (from Edge Gateway)
-            if 'payload' in data:
-                payload = data['payload']
-                topic_parts = data.get('topic', '').split('/')
+            if "payload" in data:
+                payload = data["payload"]
+                topic_parts = data.get("topic", "").split("/")
                 # forgelink/plant/area/line/cell/device/type
-                plant = topic_parts[1] if len(topic_parts) > 1 else 'steel-plant-kigali'
-                area = topic_parts[2] if len(topic_parts) > 2 else ''
+                plant = topic_parts[1] if len(topic_parts) > 1 else "steel-plant-kigali"
+                area = topic_parts[2] if len(topic_parts) > 2 else ""
                 line = topic_parts[3] if len(topic_parts) > 3 else None
                 cell = topic_parts[4] if len(topic_parts) > 4 else None
-                device_id = topic_parts[5] if len(topic_parts) > 5 else payload.get('device_id', 'unknown')
+                device_id = (
+                    topic_parts[5]
+                    if len(topic_parts) > 5
+                    else payload.get("device_id", "unknown")
+                )
 
                 return TelemetryMessage(
                     device_id=device_id,
-                    value=float(payload.get('value', 0)),
-                    quality=payload.get('quality', 'good'),
-                    timestamp=payload.get('ts') or datetime.now(timezone.utc).isoformat(),
+                    value=float(payload.get("value", 0)),
+                    quality=payload.get("quality", "good"),
+                    timestamp=payload.get("ts")
+                    or datetime.now(timezone.utc).isoformat(),
                     plant=plant,
                     area=area,
                     line=line,
                     cell=cell,
-                    unit=payload.get('unit'),
-                    sequence=payload.get('sequence', 0),
+                    unit=payload.get("unit"),
+                    sequence=payload.get("sequence", 0),
                 )
 
             logger.warning(f"Unknown message format: {data}")
@@ -180,13 +188,13 @@ class TelemetryKafkaConsumer:
             return
 
         try:
-            count = insert_telemetry_batch(self.batch)
-            self.stats['batches_written'] += 1
-            self.stats['messages_processed'] += len(self.batch)
+            insert_telemetry_batch(self.batch)
+            self.stats["batches_written"] += 1
+            self.stats["messages_processed"] += len(self.batch)
             logger.debug(f"Flushed batch of {len(self.batch)} records to TDengine")
         except Exception as e:
             logger.error(f"Failed to flush batch to TDengine: {e}")
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
             # TODO: Implement retry logic or dead letter queue
         finally:
             self.batch = []
@@ -205,7 +213,7 @@ class TelemetryKafkaConsumer:
 
     def process_message(self, msg):
         """Process a single Kafka message."""
-        self.stats['messages_received'] += 1
+        self.stats["messages_received"] += 1
 
         telemetry = self.parse_message(msg.value())
         if telemetry:
@@ -217,7 +225,7 @@ class TelemetryKafkaConsumer:
     def start(self):
         """Start consuming messages."""
         logger.info(f"Starting Kafka consumer for topics: {self.topics}")
-        self.stats['start_time'] = datetime.now(timezone.utc)
+        self.stats["start_time"] = datetime.now(timezone.utc)
 
         self.consumer = self.create_consumer()
         self.consumer.subscribe(self.topics)
@@ -247,14 +255,14 @@ class TelemetryKafkaConsumer:
                         continue
                     else:
                         logger.error(f"Kafka error: {msg.error()}")
-                        self.stats['errors'] += 1
+                        self.stats["errors"] += 1
                         continue
 
                 self.process_message(msg)
 
         except KafkaException as e:
             logger.error(f"Kafka exception: {e}")
-            self.stats['errors'] += 1
+            self.stats["errors"] += 1
         finally:
             self.shutdown()
 
@@ -283,8 +291,10 @@ class TelemetryKafkaConsumer:
     def log_stats(self):
         """Log consumer statistics."""
         duration = None
-        if self.stats['start_time']:
-            duration = (datetime.now(timezone.utc) - self.stats['start_time']).total_seconds()
+        if self.stats["start_time"]:
+            duration = (
+                datetime.now(timezone.utc) - self.stats["start_time"]
+            ).total_seconds()
 
         logger.info(
             f"Consumer stats: "
@@ -292,7 +302,9 @@ class TelemetryKafkaConsumer:
             f"processed={self.stats['messages_processed']}, "
             f"batches={self.stats['batches_written']}, "
             f"errors={self.stats['errors']}, "
-            f"duration={duration:.2f}s" if duration else ""
+            f"duration={duration:.2f}s"
+            if duration
+            else ""
         )
 
 
@@ -306,58 +318,67 @@ class EventKafkaConsumer:
     def __init__(
         self,
         bootstrap_servers: str = None,
-        group_id: str = 'forgelink-event-consumer',
+        group_id: str = "forgelink-event-consumer",
         topics: List[str] = None,
     ):
         self.bootstrap_servers = bootstrap_servers or settings.KAFKA_BOOTSTRAP_SERVERS
         self.group_id = group_id
-        self.topics = topics or ['events.all', 'status.all']
+        self.topics = topics or ["events.all", "status.all"]
         self.consumer: Optional[Consumer] = None
         self.running = False
 
     def create_consumer(self) -> Consumer:
         """Create Kafka consumer instance."""
         config = {
-            'bootstrap.servers': self.bootstrap_servers,
-            'group.id': self.group_id,
-            'auto.offset.reset': 'latest',
-            'enable.auto.commit': True,
+            "bootstrap.servers": self.bootstrap_servers,
+            "group.id": self.group_id,
+            "auto.offset.reset": "latest",
+            "enable.auto.commit": True,
         }
         return Consumer(config)
 
     def process_event(self, msg):
         """Process an event message."""
         try:
-            data = json.loads(msg.value().decode('utf-8'))
-            event_type = data.get('event_type')
+            data = json.loads(msg.value().decode("utf-8"))
+            event_type = data.get("event_type")
 
-            if event_type in ['threshold_high', 'threshold_low', 'critical_high', 'critical_low']:
+            if event_type in [
+                "threshold_high",
+                "threshold_low",
+                "critical_high",
+                "critical_low",
+            ]:
                 # Record threshold event in TDengine
                 from .tdengine import insert_event
+
                 insert_event(
-                    device_id=data.get('device_id'),
-                    plant=data.get('plant', 'steel-plant-kigali'),
-                    area=data.get('area', ''),
+                    device_id=data.get("device_id"),
+                    plant=data.get("plant", "steel-plant-kigali"),
+                    area=data.get("area", ""),
                     event_type=event_type,
-                    severity=data.get('severity', 'medium'),
-                    message=data.get('message', ''),
-                    value=data.get('value'),
-                    threshold=data.get('threshold'),
+                    severity=data.get("severity", "medium"),
+                    message=data.get("message", ""),
+                    value=data.get("value"),
+                    threshold=data.get("threshold"),
                 )
                 logger.info(f"Recorded event: {event_type} for {data.get('device_id')}")
 
-            elif event_type in ['device_online', 'device_offline', 'device_fault']:
+            elif event_type in ["device_online", "device_offline", "device_fault"]:
                 # Update device status
                 from apps.assets.models import Device
+
                 try:
-                    device = Device.objects.get(device_id=data.get('device_id'))
+                    device = Device.objects.get(device_id=data.get("device_id"))
                     status_map = {
-                        'device_online': 'online',
-                        'device_offline': 'offline',
-                        'device_fault': 'fault',
+                        "device_online": "online",
+                        "device_offline": "offline",
+                        "device_fault": "fault",
                     }
-                    device.update_status(status_map.get(event_type, 'unknown'))
-                    logger.info(f"Updated device status: {device.device_id} -> {status_map.get(event_type)}")
+                    device.update_status(status_map.get(event_type, "unknown"))
+                    logger.info(
+                        f"Updated device status: {device.device_id} -> {status_map.get(event_type)}"
+                    )
                 except Device.DoesNotExist:
                     logger.warning(f"Device not found: {data.get('device_id')}")
 
@@ -405,6 +426,7 @@ class EventKafkaConsumer:
 def run_telemetry_consumer():
     """Entry point for telemetry consumer."""
     import django
+
     django.setup()
 
     consumer = TelemetryKafkaConsumer()
@@ -414,6 +436,7 @@ def run_telemetry_consumer():
 def run_event_consumer():
     """Entry point for event consumer."""
     import django
+
     django.setup()
 
     consumer = EventKafkaConsumer()

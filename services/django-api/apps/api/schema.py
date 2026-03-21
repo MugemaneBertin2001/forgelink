@@ -1,6 +1,6 @@
 """ForgeLink GraphQL Schema."""
+
 import graphene
-from graphene_django import DjangoObjectType
 
 from apps.telemetry.schema import TelemetryQuery
 

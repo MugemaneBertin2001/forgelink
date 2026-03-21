@@ -4,21 +4,20 @@ Telemetry service layer for ForgeLink.
 Provides high-level operations for telemetry data management,
 coordinating between TDengine, Kafka, and the simulator.
 """
-import logging
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass
-from enum import Enum
 
-from django.conf import settings
+import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from .tdengine import (
-    query_telemetry,
-    query_latest_values,
-    query_device_stats,
-    query_area_summary,
-    insert_telemetry_batch,
     insert_event,
+    insert_telemetry_batch,
+    query_area_summary,
+    query_device_stats,
+    query_latest_values,
+    query_telemetry,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,47 +25,55 @@ logger = logging.getLogger(__name__)
 
 class TimeRange(Enum):
     """Predefined time ranges for queries."""
-    LAST_HOUR = '1h'
-    LAST_6_HOURS = '6h'
-    LAST_24_HOURS = '24h'
-    LAST_7_DAYS = '7d'
-    LAST_30_DAYS = '30d'
+
+    LAST_HOUR = "1h"
+    LAST_6_HOURS = "6h"
+    LAST_24_HOURS = "24h"
+    LAST_7_DAYS = "7d"
+    LAST_30_DAYS = "30d"
 
 
 class AggregationInterval(Enum):
     """Aggregation intervals for time-series data."""
+
     RAW = None
-    ONE_MINUTE = '1m'
-    FIVE_MINUTES = '5m'
-    FIFTEEN_MINUTES = '15m'
-    ONE_HOUR = '1h'
-    ONE_DAY = '1d'
+    ONE_MINUTE = "1m"
+    FIVE_MINUTES = "5m"
+    FIFTEEN_MINUTES = "15m"
+    ONE_HOUR = "1h"
+    ONE_DAY = "1d"
 
 
 @dataclass
 class TelemetryPoint:
     """Single telemetry data point."""
+
     device_id: str
     timestamp: datetime
     value: float
-    quality: str = 'good'
+    quality: str = "good"
     sequence: int = 0
-    unit: str = ''
+    unit: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'device_id': self.device_id,
-            'ts': self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else self.timestamp,
-            'value': self.value,
-            'quality': self.quality,
-            'sequence': self.sequence,
-            'unit': self.unit,
+            "device_id": self.device_id,
+            "ts": (
+                self.timestamp.isoformat()
+                if isinstance(self.timestamp, datetime)
+                else self.timestamp
+            ),
+            "value": self.value,
+            "quality": self.quality,
+            "sequence": self.sequence,
+            "unit": self.unit,
         }
 
 
 @dataclass
 class DeviceReading:
     """Current device reading with context."""
+
     device_id: str
     value: float
     quality: str
@@ -96,7 +103,7 @@ class TelemetryService:
         end_time: Optional[datetime] = None,
         time_range: Optional[TimeRange] = None,
         interval: Optional[AggregationInterval] = None,
-        limit: int = 10000
+        limit: int = 10000,
     ) -> List[Dict[str, Any]]:
         """
         Get historical telemetry for a device.
@@ -130,12 +137,18 @@ class TelemetryService:
             end_time = datetime.now(timezone.utc)
 
         # Format times
-        start_str = start_time.isoformat() if isinstance(start_time, datetime) else start_time
+        start_str = (
+            start_time.isoformat() if isinstance(start_time, datetime) else start_time
+        )
         end_str = end_time.isoformat() if isinstance(end_time, datetime) else end_time
 
         # Query TDengine
-        aggregation = 'avg' if interval and interval != AggregationInterval.RAW else None
-        interval_str = interval.value if interval and interval != AggregationInterval.RAW else None
+        aggregation = (
+            "avg" if interval and interval != AggregationInterval.RAW else None
+        )
+        interval_str = (
+            interval.value if interval and interval != AggregationInterval.RAW else None
+        )
 
         return query_telemetry(
             device_id=device_id,
@@ -143,7 +156,7 @@ class TelemetryService:
             end_time=end_str,
             aggregation=aggregation,
             interval=interval_str,
-            limit=limit
+            limit=limit,
         )
 
     @staticmethod
@@ -154,8 +167,7 @@ class TelemetryService:
 
     @staticmethod
     def get_latest_values(
-        device_ids: Optional[List[str]] = None,
-        area: Optional[str] = None
+        device_ids: Optional[List[str]] = None, area: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get latest values for multiple devices.
@@ -170,10 +182,7 @@ class TelemetryService:
         return query_latest_values(device_ids=device_ids, area=area)
 
     @staticmethod
-    def get_device_statistics(
-        device_id: str,
-        period: str = '24h'
-    ) -> Dict[str, Any]:
+    def get_device_statistics(device_id: str, period: str = "24h") -> Dict[str, Any]:
         """
         Get statistics for a device.
 
@@ -197,26 +206,26 @@ class TelemetryService:
 
         # Categorize devices
         total = len(devices)
-        online = sum(1 for d in devices if d.get('quality') == 'good')
-        warning = sum(1 for d in devices if d.get('quality') == 'uncertain')
-        fault = sum(1 for d in devices if d.get('quality') == 'bad')
+        online = sum(1 for d in devices if d.get("quality") == "good")
+        warning = sum(1 for d in devices if d.get("quality") == "uncertain")
+        fault = sum(1 for d in devices if d.get("quality") == "bad")
 
         # Group by device type
         by_type = {}
         for device in devices:
-            dtype = device.get('device_type', 'unknown')
+            dtype = device.get("device_type", "unknown")
             if dtype not in by_type:
                 by_type[dtype] = []
             by_type[dtype].append(device)
 
         return {
-            'area': area,
-            'total_devices': total,
-            'online': online,
-            'warning': warning,
-            'fault': fault,
-            'devices': devices,
-            'by_type': by_type,
+            "area": area,
+            "total_devices": total,
+            "online": online,
+            "warning": warning,
+            "fault": fault,
+            "devices": devices,
+            "by_type": by_type,
         }
 
     @staticmethod
@@ -226,34 +235,34 @@ class TelemetryService:
 
         Returns overview of all areas with key metrics.
         """
-        areas = ['melt-shop', 'continuous-casting', 'rolling-mill', 'finishing']
+        areas = ["melt-shop", "continuous-casting", "rolling-mill", "finishing"]
         dashboard = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'areas': {},
-            'totals': {
-                'devices': 0,
-                'online': 0,
-                'warning': 0,
-                'fault': 0,
-            }
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "areas": {},
+            "totals": {
+                "devices": 0,
+                "online": 0,
+                "warning": 0,
+                "fault": 0,
+            },
         }
 
         for area in areas:
             try:
                 overview = TelemetryService.get_area_overview(area)
-                dashboard['areas'][area] = {
-                    'total': overview['total_devices'],
-                    'online': overview['online'],
-                    'warning': overview['warning'],
-                    'fault': overview['fault'],
+                dashboard["areas"][area] = {
+                    "total": overview["total_devices"],
+                    "online": overview["online"],
+                    "warning": overview["warning"],
+                    "fault": overview["fault"],
                 }
-                dashboard['totals']['devices'] += overview['total_devices']
-                dashboard['totals']['online'] += overview['online']
-                dashboard['totals']['warning'] += overview['warning']
-                dashboard['totals']['fault'] += overview['fault']
+                dashboard["totals"]["devices"] += overview["total_devices"]
+                dashboard["totals"]["online"] += overview["online"]
+                dashboard["totals"]["warning"] += overview["warning"]
+                dashboard["totals"]["fault"] += overview["fault"]
             except Exception as e:
                 logger.error(f"Error getting overview for {area}: {e}")
-                dashboard['areas'][area] = {'error': str(e)}
+                dashboard["areas"][area] = {"error": str(e)}
 
         return dashboard
 
@@ -273,10 +282,10 @@ class TelemetryService:
 
         # Ensure timestamps are formatted
         for record in records:
-            if 'ts' not in record and 'timestamp' in record:
-                record['ts'] = record.pop('timestamp')
-            if isinstance(record.get('ts'), datetime):
-                record['ts'] = record['ts'].isoformat()
+            if "ts" not in record and "timestamp" in record:
+                record["ts"] = record.pop("timestamp")
+            if isinstance(record.get("ts"), datetime):
+                record["ts"] = record["ts"].isoformat()
 
         return insert_telemetry_batch(records)
 
@@ -289,7 +298,7 @@ class TelemetryService:
         severity: str,
         message: str,
         value: Optional[float] = None,
-        threshold: Optional[float] = None
+        threshold: Optional[float] = None,
     ) -> bool:
         """Record an event/alarm."""
         return insert_event(
@@ -300,7 +309,7 @@ class TelemetryService:
             severity=severity,
             message=message,
             value=value,
-            threshold=threshold
+            threshold=threshold,
         )
 
     @staticmethod
@@ -308,7 +317,7 @@ class TelemetryService:
         device_ids: List[str],
         start_time: datetime,
         end_time: datetime,
-        interval: str = '1h'
+        interval: str = "1h",
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Compare multiple devices over a time range.
@@ -324,17 +333,15 @@ class TelemetryService:
                 device_id=device_id,
                 start_time=start_str,
                 end_time=end_str,
-                aggregation='avg',
-                interval=interval
+                aggregation="avg",
+                interval=interval,
             )
 
         return result
 
     @staticmethod
     def detect_anomalies(
-        device_id: str,
-        period: str = '24h',
-        std_threshold: float = 3.0
+        device_id: str, period: str = "24h", std_threshold: float = 3.0
     ) -> List[Dict[str, Any]]:
         """
         Detect anomalous readings for a device.
@@ -343,35 +350,37 @@ class TelemetryService:
         """
         # Get statistics
         stats = query_device_stats(device_id, period)
-        if not stats or not stats.get('avg_value') or not stats.get('std_value'):
+        if not stats or not stats.get("avg_value") or not stats.get("std_value"):
             return []
 
-        avg = stats['avg_value']
-        std = stats['std_value']
+        avg = stats["avg_value"]
+        std = stats["std_value"]
         lower_bound = avg - (std_threshold * std)
         upper_bound = avg + (std_threshold * std)
 
         # Get raw data
         end_time = datetime.now(timezone.utc)
-        duration_map = {'1h': 1, '6h': 6, '24h': 24, '7d': 168}
+        duration_map = {"1h": 1, "6h": 6, "24h": 24, "7d": 168}
         hours = duration_map.get(period, 24)
         start_time = end_time - timedelta(hours=hours)
 
         data = query_telemetry(
             device_id=device_id,
             start_time=start_time.isoformat(),
-            end_time=end_time.isoformat()
+            end_time=end_time.isoformat(),
         )
 
         # Find anomalies
         anomalies = []
         for point in data:
-            value = point.get('value')
+            value = point.get("value")
             if value is not None and (value < lower_bound or value > upper_bound):
-                anomalies.append({
-                    **point,
-                    'anomaly_type': 'high' if value > upper_bound else 'low',
-                    'deviation': abs(value - avg) / std if std > 0 else 0,
-                })
+                anomalies.append(
+                    {
+                        **point,
+                        "anomaly_type": "high" if value > upper_bound else "low",
+                        "deviation": abs(value - avg) / std if std > 0 else 0,
+                    }
+                )
 
         return anomalies

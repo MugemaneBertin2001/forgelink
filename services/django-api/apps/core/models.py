@@ -6,9 +6,11 @@ Permission-based access control where:
 - Roles are groups of permissions (convenience)
 - Admin can create custom roles combining permissions
 """
+
 import uuid
-from django.db import models
+
 from django.core.cache import cache
+from django.db import models
 
 
 class Permission(models.Model):
@@ -35,12 +37,12 @@ class Permission(models.Model):
 
     # Module grouping for UI organization
     MODULE_CHOICES = [
-        ('assets', 'Assets'),
-        ('alerts', 'Alerts'),
-        ('telemetry', 'Telemetry'),
-        ('simulator', 'Simulator'),
-        ('admin', 'Administration'),
-        ('audit', 'Audit'),
+        ("assets", "Assets"),
+        ("alerts", "Alerts"),
+        ("telemetry", "Telemetry"),
+        ("simulator", "Simulator"),
+        ("admin", "Administration"),
+        ("audit", "Audit"),
     ]
     module = models.CharField(max_length=32, choices=MODULE_CHOICES)
 
@@ -48,10 +50,10 @@ class Permission(models.Model):
     sort_order = models.IntegerField(default=0)
 
     class Meta:
-        db_table = 'core_permission'
-        ordering = ['module', 'sort_order', 'code']
-        verbose_name = 'Permission'
-        verbose_name_plural = 'Permissions'
+        db_table = "core_permission"
+        ordering = ["module", "sort_order", "code"]
+        verbose_name = "Permission"
+        verbose_name_plural = "Permissions"
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -79,14 +81,13 @@ class Role(models.Model):
     # Permissions granted by this role
     permissions = models.ManyToManyField(
         Permission,
-        related_name='roles',
+        related_name="roles",
         blank=True,
     )
 
     # Is this a system role (cannot be deleted)?
     is_system = models.BooleanField(
-        default=False,
-        help_text="System roles cannot be deleted"
+        default=False, help_text="System roles cannot be deleted"
     )
 
     # Is this role active?
@@ -97,17 +98,17 @@ class Role(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'core_role'
-        ordering = ['name']
-        verbose_name = 'Role'
-        verbose_name_plural = 'Roles'
+        db_table = "core_role"
+        ordering = ["name"]
+        verbose_name = "Role"
+        verbose_name_plural = "Roles"
 
     def __str__(self):
         return self.name
 
     def get_permission_codes(self) -> set:
         """Get all permission codes for this role."""
-        return set(self.permissions.values_list('code', flat=True))
+        return set(self.permissions.values_list("code", flat=True))
 
     @classmethod
     def get_permissions_for_role(cls, role_code: str) -> set:
@@ -119,9 +120,8 @@ class Role(models.Model):
 
         if permissions is None:
             try:
-                role = cls.objects.prefetch_related('permissions').get(
-                    code=role_code,
-                    is_active=True
+                role = cls.objects.prefetch_related("permissions").get(
+                    code=role_code, is_active=True
                 )
                 permissions = role.get_permission_codes()
                 cache.set(cache_key, permissions, 300)  # 5 min cache
@@ -147,7 +147,7 @@ class Role(models.Model):
             cache.delete(f"role_permissions:{role_code}")
         else:
             # Clear all role caches
-            for role in cls.objects.values_list('code', flat=True):
+            for role in cls.objects.values_list("code", flat=True):
                 cache.delete(f"role_permissions:{role}")
 
     def save(self, *args, **kwargs):
@@ -162,84 +162,124 @@ class Role(models.Model):
 
 SYSTEM_PERMISSIONS = [
     # Assets Module
-    ('assets.view', 'View Assets', 'assets', 'View asset hierarchy and device details'),
-    ('assets.create', 'Create Assets', 'assets', 'Create new plants, areas, lines, cells, devices'),
-    ('assets.update', 'Update Assets', 'assets', 'Update existing assets'),
-    ('assets.delete', 'Delete Assets', 'assets', 'Delete assets'),
-    ('assets.manage_maintenance', 'Manage Maintenance', 'assets', 'Create and manage maintenance records'),
-
+    ("assets.view", "View Assets", "assets", "View asset hierarchy and device details"),
+    (
+        "assets.create",
+        "Create Assets",
+        "assets",
+        "Create new plants, areas, lines, cells, devices",
+    ),
+    ("assets.update", "Update Assets", "assets", "Update existing assets"),
+    ("assets.delete", "Delete Assets", "assets", "Delete assets"),
+    (
+        "assets.manage_maintenance",
+        "Manage Maintenance",
+        "assets",
+        "Create and manage maintenance records",
+    ),
     # Alerts Module
-    ('alerts.view', 'View Alerts', 'alerts', 'View active alerts and history'),
-    ('alerts.acknowledge', 'Acknowledge Alerts', 'alerts', 'Acknowledge active alerts'),
-    ('alerts.resolve', 'Resolve Alerts', 'alerts', 'Resolve alerts'),
-    ('alerts.create_rule', 'Create Alert Rules', 'alerts', 'Create new alert rules'),
-    ('alerts.update_rule', 'Update Alert Rules', 'alerts', 'Modify existing alert rules'),
-    ('alerts.delete_rule', 'Delete Alert Rules', 'alerts', 'Delete alert rules'),
-
+    ("alerts.view", "View Alerts", "alerts", "View active alerts and history"),
+    ("alerts.acknowledge", "Acknowledge Alerts", "alerts", "Acknowledge active alerts"),
+    ("alerts.resolve", "Resolve Alerts", "alerts", "Resolve alerts"),
+    ("alerts.create_rule", "Create Alert Rules", "alerts", "Create new alert rules"),
+    (
+        "alerts.update_rule",
+        "Update Alert Rules",
+        "alerts",
+        "Modify existing alert rules",
+    ),
+    ("alerts.delete_rule", "Delete Alert Rules", "alerts", "Delete alert rules"),
     # Telemetry Module
-    ('telemetry.view', 'View Telemetry', 'telemetry', 'View telemetry data and charts'),
-    ('telemetry.view_raw', 'View Raw Telemetry', 'telemetry', 'View raw telemetry data'),
-    ('telemetry.export', 'Export Telemetry', 'telemetry', 'Export telemetry data to files'),
-    ('telemetry.manage_retention', 'Manage Retention', 'telemetry', 'Configure data retention policies'),
-
+    ("telemetry.view", "View Telemetry", "telemetry", "View telemetry data and charts"),
+    (
+        "telemetry.view_raw",
+        "View Raw Telemetry",
+        "telemetry",
+        "View raw telemetry data",
+    ),
+    (
+        "telemetry.export",
+        "Export Telemetry",
+        "telemetry",
+        "Export telemetry data to files",
+    ),
+    (
+        "telemetry.manage_retention",
+        "Manage Retention",
+        "telemetry",
+        "Configure data retention policies",
+    ),
     # Simulator Module
-    ('simulator.view', 'View Simulator', 'simulator', 'View simulation status'),
-    ('simulator.control', 'Control Simulator', 'simulator', 'Start/stop simulations'),
-    ('simulator.inject_faults', 'Inject Faults', 'simulator', 'Inject device faults for testing'),
-    ('simulator.manage_profiles', 'Manage Profiles', 'simulator', 'Create and modify device profiles'),
-
+    ("simulator.view", "View Simulator", "simulator", "View simulation status"),
+    ("simulator.control", "Control Simulator", "simulator", "Start/stop simulations"),
+    (
+        "simulator.inject_faults",
+        "Inject Faults",
+        "simulator",
+        "Inject device faults for testing",
+    ),
+    (
+        "simulator.manage_profiles",
+        "Manage Profiles",
+        "simulator",
+        "Create and modify device profiles",
+    ),
     # Admin Module
-    ('admin.view_users', 'View Users', 'admin', 'View user list'),
-    ('admin.manage_users', 'Manage Users', 'admin', 'Create, update, delete users'),
-    ('admin.view_roles', 'View Roles', 'admin', 'View roles and permissions'),
-    ('admin.manage_roles', 'Manage Roles', 'admin', 'Create and modify roles'),
-    ('admin.view_audit', 'View Audit Logs', 'admin', 'View audit trail'),
-    ('admin.system_config', 'System Configuration', 'admin', 'Modify system settings'),
-
+    ("admin.view_users", "View Users", "admin", "View user list"),
+    ("admin.manage_users", "Manage Users", "admin", "Create, update, delete users"),
+    ("admin.view_roles", "View Roles", "admin", "View roles and permissions"),
+    ("admin.manage_roles", "Manage Roles", "admin", "Create and modify roles"),
+    ("admin.view_audit", "View Audit Logs", "admin", "View audit trail"),
+    ("admin.system_config", "System Configuration", "admin", "Modify system settings"),
     # Audit Module
-    ('audit.view', 'View Audit Logs', 'audit', 'View audit logs'),
-    ('audit.export', 'Export Audit Logs', 'audit', 'Export audit logs'),
+    ("audit.view", "View Audit Logs", "audit", "View audit logs"),
+    ("audit.export", "Export Audit Logs", "audit", "Export audit logs"),
 ]
 
 # Default role definitions
 DEFAULT_ROLES = {
-    'FACTORY_ADMIN': {
-        'name': 'Factory Administrator',
-        'description': 'Full access to all system functions',
-        'permissions': '*',  # All permissions
-        'is_system': True,
+    "FACTORY_ADMIN": {
+        "name": "Factory Administrator",
+        "description": "Full access to all system functions",
+        "permissions": "*",  # All permissions
+        "is_system": True,
     },
-    'PLANT_OPERATOR': {
-        'name': 'Plant Operator',
-        'description': 'Operate plant equipment, manage alerts',
-        'permissions': [
-            'assets.view', 'assets.manage_maintenance',
-            'alerts.view', 'alerts.acknowledge', 'alerts.resolve',
-            'telemetry.view', 'telemetry.view_raw',
-            'simulator.view',
-            'audit.view',
+    "PLANT_OPERATOR": {
+        "name": "Plant Operator",
+        "description": "Operate plant equipment, manage alerts",
+        "permissions": [
+            "assets.view",
+            "assets.manage_maintenance",
+            "alerts.view",
+            "alerts.acknowledge",
+            "alerts.resolve",
+            "telemetry.view",
+            "telemetry.view_raw",
+            "simulator.view",
+            "audit.view",
         ],
-        'is_system': True,
+        "is_system": True,
     },
-    'TECHNICIAN': {
-        'name': 'Technician',
-        'description': 'View assigned area, acknowledge alerts',
-        'permissions': [
-            'assets.view',
-            'alerts.view', 'alerts.acknowledge',
-            'telemetry.view',
-            'simulator.view',
+    "TECHNICIAN": {
+        "name": "Technician",
+        "description": "View assigned area, acknowledge alerts",
+        "permissions": [
+            "assets.view",
+            "alerts.view",
+            "alerts.acknowledge",
+            "telemetry.view",
+            "simulator.view",
         ],
-        'is_system': True,
+        "is_system": True,
     },
-    'VIEWER': {
-        'name': 'Viewer',
-        'description': 'Read-only access to dashboards',
-        'permissions': [
-            'assets.view',
-            'alerts.view',
-            'telemetry.view',
+    "VIEWER": {
+        "name": "Viewer",
+        "description": "Read-only access to dashboards",
+        "permissions": [
+            "assets.view",
+            "alerts.view",
+            "telemetry.view",
         ],
-        'is_system': True,
+        "is_system": True,
     },
 }

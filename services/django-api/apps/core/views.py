@@ -1,14 +1,12 @@
 """Core views including health checks."""
-from django.http import JsonResponse
+
 from django.db import connection
+from django.http import JsonResponse
 
 
 def health_check(request):
     """Basic health check - always returns 200 if the app is running."""
-    return JsonResponse({
-        "status": "healthy",
-        "service": "forgelink-api"
-    })
+    return JsonResponse({"status": "healthy", "service": "forgelink-api"})
 
 
 def readiness_check(request):
@@ -33,6 +31,7 @@ def readiness_check(request):
     # Check Redis
     try:
         from django.core.cache import cache
+
         cache.set("health_check", "ok", 1)
         if cache.get("health_check") == "ok":
             checks["redis"] = True
@@ -42,6 +41,7 @@ def readiness_check(request):
     # Check TDengine
     try:
         from apps.telemetry.tdengine import get_tdengine_connection
+
         conn = get_tdengine_connection()
         if conn:
             checks["tdengine"] = True
@@ -52,8 +52,11 @@ def readiness_check(request):
     all_healthy = all(checks.values())
     status_code = 200 if all_healthy else 503
 
-    return JsonResponse({
-        "status": "ready" if all_healthy else "not_ready",
-        "service": "forgelink-api",
-        "checks": checks
-    }, status=status_code)
+    return JsonResponse(
+        {
+            "status": "ready" if all_healthy else "not_ready",
+            "service": "forgelink-api",
+            "checks": checks,
+        },
+        status=status_code,
+    )

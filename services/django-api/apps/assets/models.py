@@ -10,9 +10,11 @@ Steel plant areas (from CLAUDE.md):
 - Rolling Mill (reheating furnace, stands)
 - Finishing (straightening, inspection, bundling)
 """
+
 import uuid
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
 
@@ -29,13 +31,13 @@ class Plant(models.Model):
         max_length=64,
         unique=True,
         db_index=True,
-        help_text="Unique plant code (e.g., steel-plant-kigali)"
+        help_text="Unique plant code (e.g., steel-plant-kigali)",
     )
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True)
 
     # Location
-    timezone = models.CharField(max_length=64, default='Africa/Kigali')
+    timezone = models.CharField(max_length=64, default="Africa/Kigali")
     latitude = models.DecimalField(
         max_digits=10, decimal_places=7, null=True, blank=True
     )
@@ -53,10 +55,10 @@ class Plant(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'assets_plant'
-        ordering = ['name']
-        verbose_name = 'Plant'
-        verbose_name_plural = 'Plants'
+        db_table = "assets_plant"
+        ordering = ["name"]
+        verbose_name = "Plant"
+        verbose_name_plural = "Plants"
 
     def __str__(self):
         return f"{self.name} ({self.code})"
@@ -70,38 +72,27 @@ class Area(models.Model):
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    plant = models.ForeignKey(
-        Plant,
-        on_delete=models.CASCADE,
-        related_name='areas'
-    )
+    plant = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name="areas")
     code = models.CharField(
-        max_length=64,
-        db_index=True,
-        help_text="Area code (e.g., melt-shop)"
+        max_length=64, db_index=True, help_text="Area code (e.g., melt-shop)"
     )
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True)
 
     # Area type for categorization
     AREA_TYPES = [
-        ('primary', 'Primary Production'),
-        ('secondary', 'Secondary Processing'),
-        ('finishing', 'Finishing'),
-        ('utility', 'Utilities'),
-        ('storage', 'Storage'),
-        ('quality', 'Quality Control'),
+        ("primary", "Primary Production"),
+        ("secondary", "Secondary Processing"),
+        ("finishing", "Finishing"),
+        ("utility", "Utilities"),
+        ("storage", "Storage"),
+        ("quality", "Quality Control"),
     ]
-    area_type = models.CharField(
-        max_length=20,
-        choices=AREA_TYPES,
-        default='primary'
-    )
+    area_type = models.CharField(max_length=20, choices=AREA_TYPES, default="primary")
 
     # Production flow order
     sequence = models.IntegerField(
-        default=0,
-        help_text="Order in production flow (1=first, 2=second, etc.)"
+        default=0, help_text="Order in production flow (1=first, 2=second, etc.)"
     )
 
     # Status
@@ -112,11 +103,11 @@ class Area(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'assets_area'
-        ordering = ['plant', 'sequence', 'name']
-        unique_together = [['plant', 'code']]
-        verbose_name = 'Area'
-        verbose_name_plural = 'Areas'
+        db_table = "assets_area"
+        ordering = ["plant", "sequence", "name"]
+        unique_together = [["plant", "code"]]
+        verbose_name = "Area"
+        verbose_name_plural = "Areas"
 
     def __str__(self):
         return f"{self.plant.code}/{self.code}"
@@ -130,29 +121,18 @@ class Line(models.Model):
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    area = models.ForeignKey(
-        Area,
-        on_delete=models.CASCADE,
-        related_name='lines'
-    )
+    area = models.ForeignKey(Area, on_delete=models.CASCADE, related_name="lines")
     code = models.CharField(
-        max_length=64,
-        db_index=True,
-        help_text="Line code (e.g., eaf-1)"
+        max_length=64, db_index=True, help_text="Line code (e.g., eaf-1)"
     )
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True)
 
     # Capacity
     design_capacity = models.FloatField(
-        null=True, blank=True,
-        help_text="Design capacity (tons/hour or units/hour)"
+        null=True, blank=True, help_text="Design capacity (tons/hour or units/hour)"
     )
-    capacity_unit = models.CharField(
-        max_length=32,
-        blank=True,
-        default='tons/hour'
-    )
+    capacity_unit = models.CharField(max_length=32, blank=True, default="tons/hour")
 
     # Status
     is_active = models.BooleanField(default=True)
@@ -162,11 +142,11 @@ class Line(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'assets_line'
-        ordering = ['area', 'code']
-        unique_together = [['area', 'code']]
-        verbose_name = 'Production Line'
-        verbose_name_plural = 'Production Lines'
+        db_table = "assets_line"
+        ordering = ["area", "code"]
+        unique_together = [["area", "code"]]
+        verbose_name = "Production Line"
+        verbose_name_plural = "Production Lines"
 
     def __str__(self):
         return f"{self.area}/{self.code}"
@@ -180,15 +160,9 @@ class Cell(models.Model):
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    line = models.ForeignKey(
-        Line,
-        on_delete=models.CASCADE,
-        related_name='cells'
-    )
+    line = models.ForeignKey(Line, on_delete=models.CASCADE, related_name="cells")
     code = models.CharField(
-        max_length=64,
-        db_index=True,
-        help_text="Cell code (e.g., electrode-a)"
+        max_length=64, db_index=True, help_text="Cell code (e.g., electrode-a)"
     )
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True)
@@ -201,11 +175,11 @@ class Cell(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'assets_cell'
-        ordering = ['line', 'code']
-        unique_together = [['line', 'code']]
-        verbose_name = 'Work Cell'
-        verbose_name_plural = 'Work Cells'
+        db_table = "assets_cell"
+        ordering = ["line", "code"]
+        unique_together = [["line", "code"]]
+        verbose_name = "Work Cell"
+        verbose_name_plural = "Work Cells"
 
     def __str__(self):
         return f"{self.line}/{self.code}"
@@ -223,39 +197,36 @@ class DeviceType(models.Model):
         max_length=32,
         unique=True,
         db_index=True,
-        help_text="Type code (e.g., temperature)"
+        help_text="Type code (e.g., temperature)",
     )
     name = models.CharField(max_length=64)
     description = models.TextField(blank=True)
 
     # Measurement details
     default_unit = models.CharField(
-        max_length=20,
-        help_text="Default unit of measurement (e.g., °C, bar, mm/s)"
+        max_length=20, help_text="Default unit of measurement (e.g., °C, bar, mm/s)"
     )
 
     # Typical thresholds (can be overridden per device)
     typical_min = models.FloatField(
-        null=True, blank=True,
-        help_text="Typical minimum value"
+        null=True, blank=True, help_text="Typical minimum value"
     )
     typical_max = models.FloatField(
-        null=True, blank=True,
-        help_text="Typical maximum value"
+        null=True, blank=True, help_text="Typical maximum value"
     )
 
     # Icon for UI
-    icon = models.CharField(max_length=32, blank=True, default='sensor')
+    icon = models.CharField(max_length=32, blank=True, default="sensor")
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'assets_device_type'
-        ordering = ['name']
-        verbose_name = 'Device Type'
-        verbose_name_plural = 'Device Types'
+        db_table = "assets_device_type"
+        ordering = ["name"]
+        verbose_name = "Device Type"
+        verbose_name_plural = "Device Types"
 
     def __str__(self):
         return f"{self.name} ({self.code})"
@@ -274,19 +245,13 @@ class Device(models.Model):
         max_length=64,
         unique=True,
         db_index=True,
-        help_text="Unique device ID (e.g., temp-sensor-001)"
+        help_text="Unique device ID (e.g., temp-sensor-001)",
     )
 
     # Hierarchy
-    cell = models.ForeignKey(
-        Cell,
-        on_delete=models.CASCADE,
-        related_name='devices'
-    )
+    cell = models.ForeignKey(Cell, on_delete=models.CASCADE, related_name="devices")
     device_type = models.ForeignKey(
-        DeviceType,
-        on_delete=models.PROTECT,
-        related_name='devices'
+        DeviceType, on_delete=models.PROTECT, related_name="devices"
     )
 
     # Device details
@@ -300,17 +265,17 @@ class Device(models.Model):
     unit = models.CharField(
         max_length=20,
         blank=True,
-        help_text="Override unit (uses device type default if empty)"
+        help_text="Override unit (uses device type default if empty)",
     )
     precision = models.IntegerField(
         default=2,
         validators=[MinValueValidator(0), MaxValueValidator(10)],
-        help_text="Decimal places for display"
+        help_text="Decimal places for display",
     )
     sampling_rate_ms = models.IntegerField(
         default=1000,
         validators=[MinValueValidator(100)],
-        help_text="Expected sampling rate in milliseconds"
+        help_text="Expected sampling rate in milliseconds",
     )
 
     # Thresholds
@@ -321,17 +286,13 @@ class Device(models.Model):
 
     # Status
     STATUS_CHOICES = [
-        ('online', 'Online'),
-        ('offline', 'Offline'),
-        ('maintenance', 'Maintenance'),
-        ('fault', 'Fault'),
-        ('calibrating', 'Calibrating'),
+        ("online", "Online"),
+        ("offline", "Offline"),
+        ("maintenance", "Maintenance"),
+        ("fault", "Fault"),
+        ("calibrating", "Calibrating"),
     ]
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='offline'
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="offline")
     is_active = models.BooleanField(default=True)
     last_seen = models.DateTimeField(null=True, blank=True)
 
@@ -342,15 +303,14 @@ class Device(models.Model):
 
     # Physical location
     location_notes = models.TextField(
-        blank=True,
-        help_text="Physical location description"
+        blank=True, help_text="Physical location description"
     )
 
     # Tags for filtering
     tags = models.JSONField(
         default=list,
         blank=True,
-        help_text="Tags for filtering (e.g., ['critical', 'eaf'])"
+        help_text="Tags for filtering (e.g., ['critical', 'eaf'])",
     )
 
     # Metadata
@@ -358,14 +318,14 @@ class Device(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'assets_device'
-        ordering = ['device_id']
-        verbose_name = 'Device'
-        verbose_name_plural = 'Devices'
+        db_table = "assets_device"
+        ordering = ["device_id"]
+        verbose_name = "Device"
+        verbose_name_plural = "Devices"
         indexes = [
-            models.Index(fields=['status']),
-            models.Index(fields=['device_type']),
-            models.Index(fields=['is_active']),
+            models.Index(fields=["status"]),
+            models.Index(fields=["device_type"]),
+            models.Index(fields=["is_active"]),
         ]
 
     def __str__(self):
@@ -397,9 +357,9 @@ class Device(models.Model):
     def update_status(self, new_status: str):
         """Update device status and last_seen timestamp."""
         self.status = new_status
-        if new_status == 'online':
+        if new_status == "online":
             self.last_seen = timezone.now()
-        self.save(update_fields=['status', 'last_seen', 'updated_at'])
+        self.save(update_fields=["status", "last_seen", "updated_at"])
 
 
 class MaintenanceRecord(models.Model):
@@ -409,23 +369,18 @@ class MaintenanceRecord(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(
-        Device,
-        on_delete=models.CASCADE,
-        related_name='maintenance_records'
+        Device, on_delete=models.CASCADE, related_name="maintenance_records"
     )
 
     # Maintenance type
     MAINTENANCE_TYPES = [
-        ('preventive', 'Preventive Maintenance'),
-        ('corrective', 'Corrective Maintenance'),
-        ('calibration', 'Calibration'),
-        ('inspection', 'Inspection'),
-        ('replacement', 'Replacement'),
+        ("preventive", "Preventive Maintenance"),
+        ("corrective", "Corrective Maintenance"),
+        ("calibration", "Calibration"),
+        ("inspection", "Inspection"),
+        ("replacement", "Replacement"),
     ]
-    maintenance_type = models.CharField(
-        max_length=20,
-        choices=MAINTENANCE_TYPES
-    )
+    maintenance_type = models.CharField(max_length=20, choices=MAINTENANCE_TYPES)
 
     # Details
     description = models.TextField()
@@ -435,10 +390,7 @@ class MaintenanceRecord(models.Model):
 
     # Parts/costs
     parts_used = models.TextField(blank=True)
-    cost = models.DecimalField(
-        max_digits=10, decimal_places=2,
-        null=True, blank=True
-    )
+    cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     # Next scheduled
     next_scheduled = models.DateField(null=True, blank=True)
@@ -447,10 +399,10 @@ class MaintenanceRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'assets_maintenance_record'
-        ordering = ['-performed_at']
-        verbose_name = 'Maintenance Record'
-        verbose_name_plural = 'Maintenance Records'
+        db_table = "assets_maintenance_record"
+        ordering = ["-performed_at"]
+        verbose_name = "Maintenance Record"
+        verbose_name_plural = "Maintenance Records"
 
     def __str__(self):
         return f"{self.device.device_id} - {self.maintenance_type} ({self.performed_at.date()})"

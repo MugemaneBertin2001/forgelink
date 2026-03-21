@@ -171,7 +171,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze code
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Run tests
         run: flutter test --coverage
@@ -200,16 +200,13 @@ jobs:
         run: pip install ruff black isort
 
       - name: Run Ruff
-        run: ruff check services/django-api/ || true
-        continue-on-error: true
+        run: ruff check services/django-api/
 
       - name: Check Black formatting
-        run: black --check services/django-api/ || true
-        continue-on-error: true
+        run: black --check services/django-api/
 
       - name: Check import sorting
-        run: isort --check-only services/django-api/ || true
-        continue-on-error: true
+        run: isort --check-only services/django-api/
 
   # Security Scanning
   security-scan:

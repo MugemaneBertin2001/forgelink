@@ -4,9 +4,11 @@ Alert models for ForgeLink.
 Manages alert rules, active alerts, and alert history.
 Django is the source of truth - Spring Notification Service only dispatches.
 """
+
 import uuid
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
 
@@ -23,82 +25,77 @@ class AlertRule(models.Model):
 
     # Target - can be specific device, device type, or area
     device = models.ForeignKey(
-        'assets.Device',
+        "assets.Device",
         on_delete=models.CASCADE,
-        related_name='alert_rules',
-        null=True, blank=True,
-        help_text="Specific device (leave blank for type/area rules)"
+        related_name="alert_rules",
+        null=True,
+        blank=True,
+        help_text="Specific device (leave blank for type/area rules)",
     )
     device_type = models.ForeignKey(
-        'assets.DeviceType',
+        "assets.DeviceType",
         on_delete=models.CASCADE,
-        related_name='alert_rules',
-        null=True, blank=True,
-        help_text="Apply to all devices of this type"
+        related_name="alert_rules",
+        null=True,
+        blank=True,
+        help_text="Apply to all devices of this type",
     )
     area_code = models.CharField(
-        max_length=64,
-        blank=True,
-        help_text="Apply to all devices in this area"
+        max_length=64, blank=True, help_text="Apply to all devices in this area"
     )
 
     # Rule type
     RULE_TYPES = [
-        ('threshold_high', 'High Threshold'),
-        ('threshold_low', 'Low Threshold'),
-        ('threshold_range', 'Out of Range'),
-        ('rate_of_change', 'Rate of Change'),
-        ('stale_data', 'Stale Data'),
-        ('quality_bad', 'Bad Quality'),
+        ("threshold_high", "High Threshold"),
+        ("threshold_low", "Low Threshold"),
+        ("threshold_range", "Out of Range"),
+        ("rate_of_change", "Rate of Change"),
+        ("stale_data", "Stale Data"),
+        ("quality_bad", "Bad Quality"),
     ]
     rule_type = models.CharField(max_length=20, choices=RULE_TYPES)
 
     # Thresholds
     threshold_value = models.FloatField(
-        null=True, blank=True,
-        help_text="Threshold value for high/low rules"
+        null=True, blank=True, help_text="Threshold value for high/low rules"
     )
     threshold_low = models.FloatField(
-        null=True, blank=True,
-        help_text="Low threshold for range rules"
+        null=True, blank=True, help_text="Low threshold for range rules"
     )
     threshold_high = models.FloatField(
-        null=True, blank=True,
-        help_text="High threshold for range rules"
+        null=True, blank=True, help_text="High threshold for range rules"
     )
     rate_threshold = models.FloatField(
-        null=True, blank=True,
-        help_text="Rate of change threshold (units/minute)"
+        null=True, blank=True, help_text="Rate of change threshold (units/minute)"
     )
     stale_minutes = models.IntegerField(
-        null=True, blank=True,
-        help_text="Minutes before data is considered stale"
+        null=True, blank=True, help_text="Minutes before data is considered stale"
     )
 
     # Severity
     SEVERITIES = [
-        ('critical', 'Critical'),
-        ('high', 'High'),
-        ('medium', 'Medium'),
-        ('low', 'Low'),
-        ('info', 'Info'),
+        ("critical", "Critical"),
+        ("high", "High"),
+        ("medium", "Medium"),
+        ("low", "Low"),
+        ("info", "Info"),
     ]
-    severity = models.CharField(max_length=10, choices=SEVERITIES, default='medium')
+    severity = models.CharField(max_length=10, choices=SEVERITIES, default="medium")
 
     # Notification settings
     notify_slack = models.BooleanField(default=True)
     slack_channel = models.CharField(
         max_length=64,
         blank=True,
-        default='#forgelink-alerts',
-        help_text="Slack channel for notifications"
+        default="#forgelink-alerts",
+        help_text="Slack channel for notifications",
     )
 
     # Cooldown to prevent alert storms
     cooldown_minutes = models.IntegerField(
         default=5,
         validators=[MinValueValidator(1), MaxValueValidator(1440)],
-        help_text="Minutes before same alert can fire again"
+        help_text="Minutes before same alert can fire again",
     )
 
     # Status
@@ -110,10 +107,10 @@ class AlertRule(models.Model):
     created_by = models.CharField(max_length=128, blank=True)
 
     class Meta:
-        db_table = 'alerts_rule'
-        ordering = ['-severity', 'name']
-        verbose_name = 'Alert Rule'
-        verbose_name_plural = 'Alert Rules'
+        db_table = "alerts_rule"
+        ordering = ["-severity", "name"]
+        verbose_name = "Alert Rule"
+        verbose_name_plural = "Alert Rules"
 
     def __str__(self):
         return f"{self.name} ({self.severity})"
@@ -129,15 +126,10 @@ class Alert(models.Model):
 
     # Source
     rule = models.ForeignKey(
-        AlertRule,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='alerts'
+        AlertRule, on_delete=models.SET_NULL, null=True, related_name="alerts"
     )
     device = models.ForeignKey(
-        'assets.Device',
-        on_delete=models.CASCADE,
-        related_name='alerts'
+        "assets.Device", on_delete=models.CASCADE, related_name="alerts"
     )
 
     # Alert details
@@ -152,12 +144,12 @@ class Alert(models.Model):
 
     # Status
     STATUSES = [
-        ('active', 'Active'),
-        ('acknowledged', 'Acknowledged'),
-        ('resolved', 'Resolved'),
-        ('suppressed', 'Suppressed'),
+        ("active", "Active"),
+        ("acknowledged", "Acknowledged"),
+        ("resolved", "Resolved"),
+        ("suppressed", "Suppressed"),
     ]
-    status = models.CharField(max_length=15, choices=STATUSES, default='active')
+    status = models.CharField(max_length=15, choices=STATUSES, default="active")
 
     # Timestamps
     triggered_at = models.DateTimeField(default=timezone.now)
@@ -171,14 +163,14 @@ class Alert(models.Model):
     notified_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = 'alerts_alert'
-        ordering = ['-triggered_at']
-        verbose_name = 'Alert'
-        verbose_name_plural = 'Alerts'
+        db_table = "alerts_alert"
+        ordering = ["-triggered_at"]
+        verbose_name = "Alert"
+        verbose_name_plural = "Alerts"
         indexes = [
-            models.Index(fields=['status', '-triggered_at']),
-            models.Index(fields=['device', '-triggered_at']),
-            models.Index(fields=['severity', 'status']),
+            models.Index(fields=["status", "-triggered_at"]),
+            models.Index(fields=["device", "-triggered_at"]),
+            models.Index(fields=["severity", "status"]),
         ]
 
     def __str__(self):
@@ -186,17 +178,19 @@ class Alert(models.Model):
 
     def acknowledge(self, user: str):
         """Acknowledge the alert."""
-        self.status = 'acknowledged'
+        self.status = "acknowledged"
         self.acknowledged_at = timezone.now()
         self.acknowledged_by = user
-        self.save(update_fields=['status', 'acknowledged_at', 'acknowledged_by', 'updated_at'])
+        self.save(
+            update_fields=["status", "acknowledged_at", "acknowledged_by", "updated_at"]
+        )
 
-    def resolve(self, user: str = 'system'):
+    def resolve(self, user: str = "system"):
         """Resolve the alert."""
-        self.status = 'resolved'
+        self.status = "resolved"
         self.resolved_at = timezone.now()
         self.resolved_by = user
-        self.save(update_fields=['status', 'resolved_at', 'resolved_by', 'updated_at'])
+        self.save(update_fields=["status", "resolved_at", "resolved_by", "updated_at"])
 
     @property
     def duration_seconds(self) -> int:
@@ -242,14 +236,14 @@ class AlertHistory(models.Model):
     archived_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'alerts_history'
-        ordering = ['-triggered_at']
-        verbose_name = 'Alert History'
-        verbose_name_plural = 'Alert History'
+        db_table = "alerts_history"
+        ordering = ["-triggered_at"]
+        verbose_name = "Alert History"
+        verbose_name_plural = "Alert History"
         indexes = [
-            models.Index(fields=['device_id', '-triggered_at']),
-            models.Index(fields=['area', '-triggered_at']),
-            models.Index(fields=['severity', '-triggered_at']),
+            models.Index(fields=["device_id", "-triggered_at"]),
+            models.Index(fields=["area", "-triggered_at"]),
+            models.Index(fields=["severity", "-triggered_at"]),
         ]
 
     def __str__(self):

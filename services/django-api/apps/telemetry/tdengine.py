@@ -8,12 +8,12 @@ This module provides:
 - Query utilities with aggregation support
 - Continuous aggregation management
 """
+
 import logging
-from typing import Optional, List, Dict, Any, Tuple
-from contextlib import contextmanager
-from datetime import datetime, timedelta
-from decimal import Decimal
 import threading
+from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from django.conf import settings
 
@@ -32,17 +32,17 @@ class TDEngineClient:
 
     def __init__(self):
         self._conn = None
-        self._database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+        self._database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     def connect(self):
         """Establish connection to TDengine."""
         import taosrest
 
         try:
-            host = settings.TDENGINE.get('HOST', 'localhost')
-            port = settings.TDENGINE.get('PORT', 6041)
-            user = settings.TDENGINE.get('USER', 'root')
-            password = settings.TDENGINE.get('PASSWORD', 'taosdata')
+            host = settings.TDENGINE.get("HOST", "localhost")
+            port = settings.TDENGINE.get("PORT", 6041)
+            user = settings.TDENGINE.get("USER", "root")
+            password = settings.TDENGINE.get("PASSWORD", "taosdata")
 
             self._conn = taosrest.connect(
                 url=f"http://{host}:{port}",
@@ -62,7 +62,7 @@ class TDEngineClient:
         if self._conn:
             try:
                 self._conn.close()
-            except:
+            except Exception:
                 pass
             self._conn = None
 
@@ -102,7 +102,7 @@ class TDEngineClient:
 
 def get_client() -> TDEngineClient:
     """Get thread-local TDengine client."""
-    if not hasattr(_local, 'client') or _local.client is None:
+    if not hasattr(_local, "client") or _local.client is None:
         _local.client = TDEngineClient()
         _local.client.connect()
     return _local.client
@@ -131,7 +131,7 @@ def init_tdengine_schema() -> bool:
     - Aggregate supertables (1m, 1h, 1d)
     """
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         # Create database
@@ -258,11 +258,7 @@ def init_tdengine_schema() -> bool:
 
 
 def generate_table_name(
-    plant: str,
-    area: str,
-    line: str = '',
-    cell: str = '',
-    device_id: str = ''
+    plant: str, area: str, line: str = "", cell: str = "", device_id: str = ""
 ) -> str:
     """
     Generate child table name from device path.
@@ -270,8 +266,8 @@ def generate_table_name(
     Follows naming convention: plant_area_line_cell_device_id
     """
     parts = [plant, area, line, cell, device_id]
-    parts = [p.replace('-', '_').replace(' ', '_').lower() for p in parts if p]
-    return '_'.join(parts)
+    parts = [p.replace("-", "_").replace(" ", "_").lower() for p in parts if p]
+    return "_".join(parts)
 
 
 def insert_telemetry_batch(records: List[Dict[str, Any]]) -> int:
@@ -292,7 +288,7 @@ def insert_telemetry_batch(records: List[Dict[str, Any]]) -> int:
         return 0
 
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
@@ -303,16 +299,16 @@ def insert_telemetry_batch(records: List[Dict[str, Any]]) -> int:
 
         for record in records:
             table_name = generate_table_name(
-                record.get('plant', 'unknown'),
-                record.get('area', 'unknown'),
-                record.get('line', ''),
-                record.get('cell', ''),
-                record['device_id']
+                record.get("plant", "unknown"),
+                record.get("area", "unknown"),
+                record.get("line", ""),
+                record.get("cell", ""),
+                record["device_id"],
             )
 
             # Escape single quotes in values
-            quality = str(record.get('quality', 'good')).replace("'", "''")
-            device_id = str(record['device_id']).replace("'", "''")
+            quality = str(record.get("quality", "good")).replace("'", "''")
+            device_id = str(record["device_id"]).replace("'", "''")
 
             sql_parts.append(f"""
                 {table_name} USING telemetry TAGS (
@@ -351,16 +347,16 @@ def insert_event(
     message: str,
     value: Optional[float] = None,
     threshold: Optional[float] = None,
-    ts: Optional[str] = None
+    ts: Optional[str] = None,
 ) -> bool:
     """Insert an event record."""
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
 
-        table_name = f"{plant}_{area}_{device_id}_events".replace('-', '_').lower()
+        table_name = f"{plant}_{area}_{device_id}_events".replace("-", "_").lower()
         ts = ts or datetime.utcnow().isoformat()
 
         sql = f"""
@@ -392,7 +388,7 @@ def query_telemetry(
     end_time: str,
     aggregation: Optional[str] = None,
     interval: Optional[str] = None,
-    limit: int = 10000
+    limit: int = 10000,
 ) -> List[Dict[str, Any]]:
     """
     Query telemetry data for a device.
@@ -409,7 +405,7 @@ def query_telemetry(
         List of telemetry records
     """
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
@@ -445,21 +441,21 @@ def query_telemetry(
         if aggregation and interval:
             return [
                 {
-                    'ts': row[0],
-                    'avg_value': row[1],
-                    'min_value': row[2],
-                    'max_value': row[3],
-                    'count': row[4],
+                    "ts": row[0],
+                    "avg_value": row[1],
+                    "min_value": row[2],
+                    "max_value": row[3],
+                    "count": row[4],
                 }
                 for row in results
             ]
         else:
             return [
                 {
-                    'ts': row[0],
-                    'value': row[1],
-                    'quality': row[2] if len(row) > 2 else 'good',
-                    'sequence': row[3] if len(row) > 3 else None,
+                    "ts": row[0],
+                    "value": row[1],
+                    "quality": row[2] if len(row) > 2 else "good",
+                    "sequence": row[3] if len(row) > 3 else None,
                 }
                 for row in results
             ]
@@ -470,8 +466,7 @@ def query_telemetry(
 
 
 def query_latest_values(
-    device_ids: Optional[List[str]] = None,
-    area: Optional[str] = None
+    device_ids: Optional[List[str]] = None, area: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Query latest values for devices.
@@ -479,7 +474,7 @@ def query_latest_values(
     Uses TDengine's LAST_ROW function for fast last-value lookup.
     """
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
@@ -510,12 +505,12 @@ def query_latest_values(
 
         return [
             {
-                'device_id': row[0],
-                'ts': row[1],
-                'value': row[2],
-                'quality': row[3],
-                'area': row[4],
-                'unit': row[5],
+                "device_id": row[0],
+                "ts": row[1],
+                "value": row[2],
+                "quality": row[3],
+                "area": row[4],
+                "unit": row[5],
             }
             for row in results
         ]
@@ -525,17 +520,14 @@ def query_latest_values(
         raise
 
 
-def query_device_stats(
-    device_id: str,
-    period: str = '24h'
-) -> Dict[str, Any]:
+def query_device_stats(device_id: str, period: str = "24h") -> Dict[str, Any]:
     """
     Query statistics for a device over a period.
 
     Returns avg, min, max, std, count for the period.
     """
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
@@ -558,15 +550,15 @@ def query_device_stats(
 
         if result:
             return {
-                'device_id': device_id,
-                'period': period,
-                'avg_value': result[0],
-                'min_value': result[1],
-                'max_value': result[2],
-                'std_value': result[3],
-                'count': result[4],
-                'first_ts': result[5],
-                'last_ts': result[6],
+                "device_id": device_id,
+                "period": period,
+                "avg_value": result[0],
+                "min_value": result[1],
+                "max_value": result[2],
+                "std_value": result[3],
+                "count": result[4],
+                "first_ts": result[5],
+                "last_ts": result[6],
             }
         return {}
 
@@ -580,7 +572,7 @@ def query_area_summary(area: str) -> List[Dict[str, Any]]:
     Query summary for all devices in an area.
     """
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
@@ -604,13 +596,13 @@ def query_area_summary(area: str) -> List[Dict[str, Any]]:
 
         return [
             {
-                'device_id': row[0],
-                'device_type': row[1],
-                'unit': row[2],
-                'last_value': row[3],
-                'last_ts': row[4],
-                'quality': row[5],
-                'avg_1h': row[6],
+                "device_id": row[0],
+                "device_type": row[1],
+                "unit": row[2],
+                "last_value": row[3],
+                "last_ts": row[4],
+                "quality": row[5],
+                "avg_1h": row[6],
             }
             for row in results
         ]
@@ -621,11 +613,7 @@ def query_area_summary(area: str) -> List[Dict[str, Any]]:
 
 
 def compute_aggregates(
-    source_table: str,
-    target_table: str,
-    interval: str,
-    start_time: str,
-    end_time: str
+    source_table: str, target_table: str, interval: str, start_time: str, end_time: str
 ) -> int:
     """
     Compute aggregates from source to target table.
@@ -633,7 +621,7 @@ def compute_aggregates(
     Used by Celery tasks for continuous aggregation.
     """
     client = get_client()
-    database = settings.TDENGINE.get('DATABASE', 'forgelink_telemetry')
+    database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
@@ -648,7 +636,9 @@ def compute_aggregates(
 
         inserted = 0
         for device_id, plant, area, unit in devices:
-            table_name = f"{plant}_{area}_{device_id}_{interval}".replace('-', '_').lower()
+            table_name = f"{plant}_{area}_{device_id}_{interval}".replace(
+                "-", "_"
+            ).lower()
 
             agg_sql = f"""
                 SELECT

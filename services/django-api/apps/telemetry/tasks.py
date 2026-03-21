@@ -7,19 +7,14 @@ Handles:
 - Data quality monitoring
 - Threshold alerts
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, Optional
 
 from celery import shared_task
-from django.conf import settings
 
-from .tdengine import (
-    get_tdengine_client,
-    query_telemetry,
-    query_device_stats,
-    insert_event,
-)
+from .tdengine import get_tdengine_client, insert_event, query_device_stats
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +22,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 # Aggregation Tasks
 # ============================================
+
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def aggregate_telemetry_1m(self) -> Dict[str, Any]:
@@ -41,7 +37,7 @@ def aggregate_telemetry_1m(self) -> Dict[str, Any]:
         client = get_tdengine_client()
         if not client:
             logger.error("TDengine client not available")
-            return {'status': 'error', 'message': 'TDengine unavailable'}
+            return {"status": "error", "message": "TDengine unavailable"}
 
         # TDengine continuous aggregation query
         # Uses TDengine's built-in INTERVAL function
@@ -66,9 +62,9 @@ def aggregate_telemetry_1m(self) -> Dict[str, Any]:
             client.execute(sql)
             logger.info(f"Created 1-minute aggregates for {start_time} to {end_time}")
             return {
-                'status': 'success',
-                'start_time': start_time.isoformat(),
-                'end_time': end_time.isoformat(),
+                "status": "success",
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
             }
         except Exception as e:
             # TDengine may not support INSERT...SELECT, use alternative
@@ -80,7 +76,9 @@ def aggregate_telemetry_1m(self) -> Dict[str, Any]:
         raise self.retry(exc=e)
 
 
-def aggregate_telemetry_1m_fallback(start_time: datetime, end_time: datetime) -> Dict[str, Any]:
+def aggregate_telemetry_1m_fallback(
+    start_time: datetime, end_time: datetime
+) -> Dict[str, Any]:
     """Fallback aggregation using SELECT + INSERT."""
     client = get_tdengine_client()
 
@@ -98,8 +96,7 @@ def aggregate_telemetry_1m_fallback(start_time: datetime, end_time: datetime) ->
 
     aggregated = 0
     for device_row in devices:
-        device_id = device_row.get('device_id') or device_row[0]
-        area = device_row.get('area') or device_row[1] if len(device_row) > 1 else 'unknown'
+        device_id = device_row.get("device_id") or device_row[0]
 
         # Get aggregated values
         agg_sql = f"""
@@ -117,11 +114,11 @@ def aggregate_telemetry_1m_fallback(start_time: datetime, end_time: datetime) ->
         try:
             results = client.fetchall(agg_sql)
             for row in results:
-                ts = row.get('ts') or row[0]
-                avg_val = row.get('avg_value') or row[1]
-                min_val = row.get('min_value') or row[2]
-                max_val = row.get('max_value') or row[3]
-                count = row.get('count') or row[4]
+                ts = row.get("ts") or row[0]
+                avg_val = row.get("avg_value") or row[1]
+                min_val = row.get("min_value") or row[2]
+                max_val = row.get("max_value") or row[3]
+                count = row.get("count") or row[4]
 
                 if avg_val is not None:
                     insert_sql = f"""
@@ -137,10 +134,10 @@ def aggregate_telemetry_1m_fallback(start_time: datetime, end_time: datetime) ->
             logger.debug(f"Aggregation query failed for {device_id}: {e}")
 
     return {
-        'status': 'success',
-        'aggregated': aggregated,
-        'start_time': start_time.isoformat(),
-        'end_time': end_time.isoformat(),
+        "status": "success",
+        "aggregated": aggregated,
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
     }
 
 
@@ -155,7 +152,7 @@ def aggregate_telemetry_1h(self) -> Dict[str, Any]:
         client = get_tdengine_client()
         if not client:
             logger.error("TDengine client not available")
-            return {'status': 'error', 'message': 'TDengine unavailable'}
+            return {"status": "error", "message": "TDengine unavailable"}
 
         end_time = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
         start_time = end_time - timedelta(hours=1)
@@ -182,10 +179,10 @@ def aggregate_telemetry_1h(self) -> Dict[str, Any]:
         logger.info(f"Created {aggregated} hourly aggregates")
 
         return {
-            'status': 'success',
-            'aggregated': aggregated,
-            'start_time': start_time.isoformat(),
-            'end_time': end_time.isoformat(),
+            "status": "success",
+            "aggregated": aggregated,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
         }
 
     except Exception as e:
@@ -204,9 +201,11 @@ def aggregate_telemetry_1d(self) -> Dict[str, Any]:
         client = get_tdengine_client()
         if not client:
             logger.error("TDengine client not available")
-            return {'status': 'error', 'message': 'TDengine unavailable'}
+            return {"status": "error", "message": "TDengine unavailable"}
 
-        end_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         start_time = end_time - timedelta(days=1)
 
         logger.info(f"Creating daily aggregates for {start_time.date()}")
@@ -231,9 +230,9 @@ def aggregate_telemetry_1d(self) -> Dict[str, Any]:
         logger.info(f"Created {aggregated} daily aggregates for {start_time.date()}")
 
         return {
-            'status': 'success',
-            'aggregated': aggregated,
-            'date': start_time.date().isoformat(),
+            "status": "success",
+            "aggregated": aggregated,
+            "date": start_time.date().isoformat(),
         }
 
     except Exception as e:
@@ -244,6 +243,7 @@ def aggregate_telemetry_1d(self) -> Dict[str, Any]:
 # ============================================
 # Data Retention Tasks
 # ============================================
+
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=3600)
 def cleanup_old_telemetry(self) -> Dict[str, Any]:
@@ -262,19 +262,16 @@ def cleanup_old_telemetry(self) -> Dict[str, Any]:
         client = get_tdengine_client()
         if not client:
             logger.error("TDengine client not available")
-            return {'status': 'error', 'message': 'TDengine unavailable'}
+            return {"status": "error", "message": "TDengine unavailable"}
 
         now = datetime.now(timezone.utc)
-        results = {
-            'raw_deleted': 0,
-            '1m_deleted': 0,
-            '1h_deleted': 0,
-        }
 
         # Delete raw data older than 30 days
         raw_cutoff = now - timedelta(days=30)
         try:
-            sql = f"DELETE FROM forgelink.telemetry WHERE ts < '{raw_cutoff.isoformat()}'"
+            sql = (
+                f"DELETE FROM forgelink.telemetry WHERE ts < '{raw_cutoff.isoformat()}'"
+            )
             client.execute(sql)
             logger.info(f"Deleted raw telemetry older than {raw_cutoff.date()}")
         except Exception as e:
@@ -299,10 +296,10 @@ def cleanup_old_telemetry(self) -> Dict[str, Any]:
             logger.debug(f"1-hour cleanup failed: {e}")
 
         return {
-            'status': 'success',
-            'raw_cutoff': raw_cutoff.date().isoformat(),
-            'min_cutoff': min_cutoff.date().isoformat(),
-            'hour_cutoff': hour_cutoff.date().isoformat(),
+            "status": "success",
+            "raw_cutoff": raw_cutoff.date().isoformat(),
+            "min_cutoff": min_cutoff.date().isoformat(),
+            "hour_cutoff": hour_cutoff.date().isoformat(),
         }
 
     except Exception as e:
@@ -313,6 +310,7 @@ def cleanup_old_telemetry(self) -> Dict[str, Any]:
 # ============================================
 # Quality Monitoring Tasks
 # ============================================
+
 
 @shared_task(bind=True, max_retries=3)
 def check_data_quality(self) -> Dict[str, Any]:
@@ -325,7 +323,7 @@ def check_data_quality(self) -> Dict[str, Any]:
     try:
         client = get_tdengine_client()
         if not client:
-            return {'status': 'error', 'message': 'TDengine unavailable'}
+            return {"status": "error", "message": "TDengine unavailable"}
 
         now = datetime.now(timezone.utc)
         stale_threshold = now - timedelta(minutes=5)  # 5 minutes stale
@@ -343,46 +341,60 @@ def check_data_quality(self) -> Dict[str, Any]:
         quality_issues = []
 
         for row in results:
-            device_id = row.get('device_id') or row[0]
-            area = row.get('area') or row[1]
-            last_ts = row.get('last_ts') or row[2]
-            quality = row.get('quality') or row[3]
+            device_id = row.get("device_id") or row[0]
+            area = row.get("area") or row[1]
+            last_ts = row.get("last_ts") or row[2]
+            quality = row.get("quality") or row[3]
 
             # Check for stale data
             if isinstance(last_ts, str):
-                last_ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00'))
+                last_ts = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
 
             if last_ts and last_ts < stale_threshold:
-                stale_devices.append({
-                    'device_id': device_id,
-                    'area': area,
-                    'last_seen': last_ts.isoformat() if hasattr(last_ts, 'isoformat') else str(last_ts),
-                    'minutes_stale': int((now - last_ts).total_seconds() / 60) if last_ts else 999,
-                })
+                stale_devices.append(
+                    {
+                        "device_id": device_id,
+                        "area": area,
+                        "last_seen": (
+                            last_ts.isoformat()
+                            if hasattr(last_ts, "isoformat")
+                            else str(last_ts)
+                        ),
+                        "minutes_stale": (
+                            int((now - last_ts).total_seconds() / 60)
+                            if last_ts
+                            else 999
+                        ),
+                    }
+                )
 
             # Check for bad quality
-            if quality and quality != 'good':
-                quality_issues.append({
-                    'device_id': device_id,
-                    'area': area,
-                    'quality': quality,
-                })
+            if quality and quality != "good":
+                quality_issues.append(
+                    {
+                        "device_id": device_id,
+                        "area": area,
+                        "quality": quality,
+                    }
+                )
 
         # Log warnings
         if stale_devices:
             logger.warning(f"Found {len(stale_devices)} stale devices")
             for device in stale_devices[:5]:  # Log first 5
-                logger.warning(f"  Stale: {device['device_id']} ({device['minutes_stale']} min)")
+                logger.warning(
+                    f"  Stale: {device['device_id']} ({device['minutes_stale']} min)"
+                )
 
         if quality_issues:
             logger.warning(f"Found {len(quality_issues)} quality issues")
 
         return {
-            'status': 'success',
-            'checked_at': now.isoformat(),
-            'stale_devices': len(stale_devices),
-            'quality_issues': len(quality_issues),
-            'stale_list': stale_devices[:10],  # Return first 10
+            "status": "success",
+            "checked_at": now.isoformat(),
+            "stale_devices": len(stale_devices),
+            "quality_issues": len(quality_issues),
+            "stale_list": stale_devices[:10],  # Return first 10
         }
 
     except Exception as e:
@@ -391,7 +403,9 @@ def check_data_quality(self) -> Dict[str, Any]:
 
 
 @shared_task(bind=True, max_retries=3)
-def check_thresholds(self, device_id: str, value: float, thresholds: Dict[str, float]) -> Dict[str, Any]:
+def check_thresholds(
+    self, device_id: str, value: float, thresholds: Dict[str, float]
+) -> Dict[str, Any]:
     """
     Check if a value exceeds thresholds and generate alerts.
 
@@ -403,58 +417,68 @@ def check_thresholds(self, device_id: str, value: float, thresholds: Dict[str, f
     try:
         alerts = []
 
-        warning_low = thresholds.get('warning_low')
-        warning_high = thresholds.get('warning_high')
-        critical_low = thresholds.get('critical_low')
-        critical_high = thresholds.get('critical_high')
+        warning_low = thresholds.get("warning_low")
+        warning_high = thresholds.get("warning_high")
+        critical_low = thresholds.get("critical_low")
+        critical_high = thresholds.get("critical_high")
 
         # Check critical thresholds first
         if critical_high is not None and value >= critical_high:
-            alerts.append({
-                'event_type': 'critical_high',
-                'severity': 'critical',
-                'message': f"Value {value} exceeds critical high threshold {critical_high}",
-            })
+            alerts.append(
+                {
+                    "event_type": "critical_high",
+                    "severity": "critical",
+                    "message": f"Value {value} exceeds critical high threshold {critical_high}",
+                }
+            )
         elif critical_low is not None and value <= critical_low:
-            alerts.append({
-                'event_type': 'critical_low',
-                'severity': 'critical',
-                'message': f"Value {value} below critical low threshold {critical_low}",
-            })
+            alerts.append(
+                {
+                    "event_type": "critical_low",
+                    "severity": "critical",
+                    "message": f"Value {value} below critical low threshold {critical_low}",
+                }
+            )
         elif warning_high is not None and value >= warning_high:
-            alerts.append({
-                'event_type': 'threshold_high',
-                'severity': 'high',
-                'message': f"Value {value} exceeds warning high threshold {warning_high}",
-            })
+            alerts.append(
+                {
+                    "event_type": "threshold_high",
+                    "severity": "high",
+                    "message": f"Value {value} exceeds warning high threshold {warning_high}",
+                }
+            )
         elif warning_low is not None and value <= warning_low:
-            alerts.append({
-                'event_type': 'threshold_low',
-                'severity': 'high',
-                'message': f"Value {value} below warning low threshold {warning_low}",
-            })
+            alerts.append(
+                {
+                    "event_type": "threshold_low",
+                    "severity": "high",
+                    "message": f"Value {value} below warning low threshold {warning_low}",
+                }
+            )
 
         # Record events
         for alert in alerts:
             try:
                 insert_event(
                     device_id=device_id,
-                    plant='steel-plant-kigali',
-                    area='unknown',  # Would need device lookup
-                    event_type=alert['event_type'],
-                    severity=alert['severity'],
-                    message=alert['message'],
+                    plant="steel-plant-kigali",
+                    area="unknown",  # Would need device lookup
+                    event_type=alert["event_type"],
+                    severity=alert["severity"],
+                    message=alert["message"],
                     value=value,
-                    threshold=thresholds.get(alert['event_type'].replace('_', '_').split('_')[-1])
+                    threshold=thresholds.get(
+                        alert["event_type"].replace("_", "_").split("_")[-1]
+                    ),
                 )
             except Exception as e:
                 logger.error(f"Failed to record alert: {e}")
 
         return {
-            'device_id': device_id,
-            'value': value,
-            'alerts': len(alerts),
-            'alert_details': alerts,
+            "device_id": device_id,
+            "value": value,
+            "alerts": len(alerts),
+            "alert_details": alerts,
         }
 
     except Exception as e:
@@ -466,8 +490,11 @@ def check_thresholds(self, device_id: str, value: float, thresholds: Dict[str, f
 # Statistics Tasks
 # ============================================
 
+
 @shared_task(bind=True, max_retries=3)
-def compute_device_statistics(self, device_id: str, period: str = '24h') -> Dict[str, Any]:
+def compute_device_statistics(
+    self, device_id: str, period: str = "24h"
+) -> Dict[str, Any]:
     """
     Compute and cache device statistics.
 
@@ -477,18 +504,20 @@ def compute_device_statistics(self, device_id: str, period: str = '24h') -> Dict
         stats = query_device_stats(device_id, period)
 
         if stats:
-            logger.debug(f"Computed stats for {device_id}: avg={stats.get('avg_value')}")
+            logger.debug(
+                f"Computed stats for {device_id}: avg={stats.get('avg_value')}"
+            )
             return {
-                'status': 'success',
-                'device_id': device_id,
-                'period': period,
-                'stats': stats,
+                "status": "success",
+                "device_id": device_id,
+                "period": period,
+                "stats": stats,
             }
         else:
             return {
-                'status': 'no_data',
-                'device_id': device_id,
-                'period': period,
+                "status": "no_data",
+                "device_id": device_id,
+                "period": period,
             }
 
     except Exception as e:
@@ -508,18 +537,20 @@ def compute_area_summary(self, area: str) -> Dict[str, Any]:
 
         overview = TelemetryService.get_area_overview(area)
 
-        logger.info(f"Area {area}: {overview['total_devices']} devices, "
-                   f"{overview['online']} online, {overview['fault']} faults")
+        logger.info(
+            f"Area {area}: {overview['total_devices']} devices, "
+            f"{overview['online']} online, {overview['fault']} faults"
+        )
 
         return {
-            'status': 'success',
-            'area': area,
-            'summary': {
-                'total_devices': overview['total_devices'],
-                'online': overview['online'],
-                'warning': overview['warning'],
-                'fault': overview['fault'],
-            }
+            "status": "success",
+            "area": area,
+            "summary": {
+                "total_devices": overview["total_devices"],
+                "online": overview["online"],
+                "warning": overview["warning"],
+                "fault": overview["fault"],
+            },
         }
 
     except Exception as e:
@@ -530,6 +561,7 @@ def compute_area_summary(self, area: str) -> Dict[str, Any]:
 # ============================================
 # Anomaly Detection Tasks
 # ============================================
+
 
 @shared_task(bind=True, max_retries=3)
 def detect_anomalies_batch(self, area: Optional[str] = None) -> Dict[str, Any]:
@@ -546,7 +578,7 @@ def detect_anomalies_batch(self, area: Optional[str] = None) -> Dict[str, Any]:
 
         client = get_tdengine_client()
         if not client:
-            return {'status': 'error', 'message': 'TDengine unavailable'}
+            return {"status": "error", "message": "TDengine unavailable"}
 
         # Get devices to check
         device_sql = "SELECT DISTINCT device_id FROM forgelink.telemetry"
@@ -558,35 +590,35 @@ def detect_anomalies_batch(self, area: Optional[str] = None) -> Dict[str, Any]:
         anomaly_summary = []
 
         for device_row in devices[:50]:  # Limit to 50 devices per run
-            device_id = device_row.get('device_id') or device_row[0]
+            device_id = device_row.get("device_id") or device_row[0]
 
             try:
                 anomalies = TelemetryService.detect_anomalies(
-                    device_id=device_id,
-                    period='1h',
-                    std_threshold=3.0
+                    device_id=device_id, period="1h", std_threshold=3.0
                 )
 
                 if anomalies:
                     total_anomalies += len(anomalies)
-                    anomaly_summary.append({
-                        'device_id': device_id,
-                        'count': len(anomalies),
-                    })
+                    anomaly_summary.append(
+                        {
+                            "device_id": device_id,
+                            "count": len(anomalies),
+                        }
+                    )
 
                     # Record events for significant anomalies
                     for anomaly in anomalies[:3]:  # First 3 per device
-                        if anomaly.get('deviation', 0) > 4.0:  # Severe
+                        if anomaly.get("deviation", 0) > 4.0:  # Severe
                             try:
                                 insert_event(
                                     device_id=device_id,
-                                    plant='steel-plant-kigali',
-                                    area=area or 'unknown',
-                                    event_type='rate_of_change',
-                                    severity='medium',
+                                    plant="steel-plant-kigali",
+                                    area=area or "unknown",
+                                    event_type="rate_of_change",
+                                    severity="medium",
                                     message=f"Anomaly detected: {anomaly['deviation']:.1f} std from mean",
-                                    value=anomaly.get('value'),
-                                    threshold=None
+                                    value=anomaly.get("value"),
+                                    threshold=None,
                                 )
                             except Exception as e:
                                 logger.debug(f"Failed to record anomaly event: {e}")
@@ -594,14 +626,16 @@ def detect_anomalies_batch(self, area: Optional[str] = None) -> Dict[str, Any]:
             except Exception as e:
                 logger.debug(f"Anomaly detection failed for {device_id}: {e}")
 
-        logger.info(f"Anomaly detection complete: {total_anomalies} anomalies in {len(devices)} devices")
+        logger.info(
+            f"Anomaly detection complete: {total_anomalies} anomalies in {len(devices)} devices"
+        )
 
         return {
-            'status': 'success',
-            'devices_checked': len(devices),
-            'total_anomalies': total_anomalies,
-            'devices_with_anomalies': len(anomaly_summary),
-            'summary': anomaly_summary[:10],
+            "status": "success",
+            "devices_checked": len(devices),
+            "total_anomalies": total_anomalies,
+            "devices_with_anomalies": len(anomaly_summary),
+            "summary": anomaly_summary[:10],
         }
 
     except Exception as e:

@@ -3,17 +3,20 @@ Alert services for ForgeLink.
 
 Handles alert rule evaluation and notification dispatch.
 """
+
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any, List
+from datetime import timedelta
+from typing import Any, Dict, List, Optional
 
 from django.conf import settings
+from django.db import models
 from django.utils import timezone as dj_timezone
+
 from confluent_kafka import Producer
 
-from .models import AlertRule, Alert, AlertHistory
+from .models import Alert, AlertHistory, AlertRule
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +44,17 @@ class AlertService:
     def get_kafka_producer(cls) -> Producer:
         """Get or create Kafka producer."""
         if cls._kafka_producer is None:
-            cls._kafka_producer = Producer({
-                'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
-                'client.id': 'forgelink-alert-service',
-            })
+            cls._kafka_producer = Producer(
+                {
+                    "bootstrap.servers": settings.KAFKA_BOOTSTRAP_SERVERS,
+                    "client.id": "forgelink-alert-service",
+                }
+            )
         return cls._kafka_producer
 
     @staticmethod
     def evaluate_threshold(
-        device_id: str,
-        value: float,
-        quality: str = 'good'
+        device_id: str, value: float, quality: str = "good"
     ) -> List[Alert]:
         """
         Evaluate threshold rules for a device reading.
@@ -61,9 +64,9 @@ class AlertService:
         from apps.assets.models import Device
 
         try:
-            device = Device.objects.select_related('device_type', 'cell__line__area').get(
-                device_id=device_id
-            )
+            device = Device.objects.select_related(
+                "device_type", "cell__line__area"
+            ).get(device_id=device_id)
         except Device.DoesNotExist:
             logger.warning(f"Device not found: {device_id}")
             return []
@@ -72,13 +75,13 @@ class AlertService:
         triggered_alerts = []
 
         # Find applicable rules
-        rules = AlertRule.objects.filter(
-            is_active=True
-        ).filter(
+        rules = AlertRule.objects.filter(is_active=True).filter(
             # Device-specific, type-specific, or area-specific
-            models.Q(device=device) |
-            models.Q(device_type=device.device_type, device__isnull=True) |
-            models.Q(area_code=area.code, device__isnull=True, device_type__isnull=True)
+            models.Q(device=device)
+            | models.Q(device_type=device.device_type, device__isnull=True)
+            | models.Q(
+                area_code=area.code, device__isnull=True, device_type__isnull=True
+            )
         )
 
         for rule in rules:
@@ -90,10 +93,7 @@ class AlertService:
 
     @staticmethod
     def _evaluate_rule(
-        rule: AlertRule,
-        device,
-        value: float,
-        quality: str
+        rule: AlertRule, device, value: float, quality: str
     ) -> Optional[Alert]:
         """Evaluate a single rule against a value."""
 
@@ -103,7 +103,7 @@ class AlertService:
             rule=rule,
             device=device,
             triggered_at__gte=recent_cutoff,
-            status__in=['active', 'acknowledged']
+            status__in=["active", "acknowledged"],
         ).exists()
 
         if recent_alert:
@@ -113,19 +113,19 @@ class AlertService:
         message = ""
         threshold = None
 
-        if rule.rule_type == 'threshold_high' and rule.threshold_value is not None:
+        if rule.rule_type == "threshold_high" and rule.threshold_value is not None:
             if value >= rule.threshold_value:
                 triggered = True
                 threshold = rule.threshold_value
                 message = f"Value {value:.2f} exceeds high threshold {threshold:.2f}"
 
-        elif rule.rule_type == 'threshold_low' and rule.threshold_value is not None:
+        elif rule.rule_type == "threshold_low" and rule.threshold_value is not None:
             if value <= rule.threshold_value:
                 triggered = True
                 threshold = rule.threshold_value
                 message = f"Value {value:.2f} below low threshold {threshold:.2f}"
 
-        elif rule.rule_type == 'threshold_range':
+        elif rule.rule_type == "threshold_range":
             if rule.threshold_low is not None and value < rule.threshold_low:
                 triggered = True
                 threshold = rule.threshold_low
@@ -135,10 +135,10 @@ class AlertService:
                 threshold = rule.threshold_high
                 message = f"Value {value:.2f} above range maximum {threshold:.2f}"
 
-        elif rule.rule_type == 'quality_bad':
-            if quality == 'bad':
+        elif rule.rule_type == "quality_bad":
+            if quality == "bad":
                 triggered = True
-                message = f"Device reporting bad quality data"
+                message = "Device reporting bad quality data"
 
         if triggered:
             alert = Alert.objects.create(
@@ -166,7 +166,7 @@ class AlertService:
         return None
 
     @staticmethod
-    def send_to_slack(alert: Alert, channel: str = '#forgelink-alerts'):
+    def send_to_slack(alert: Alert, channel: str = "#forgelink-alerts"):
         """
         Publish alert to Kafka for Slack notification.
         """
@@ -175,33 +175,33 @@ class AlertService:
             area = device.cell.line.area
 
             event = {
-                'alertId': str(alert.id),
-                'deviceId': device.device_id,
-                'deviceName': device.name,
-                'plant': area.plant.code,
-                'area': area.code,
-                'alertType': alert.alert_type,
-                'severity': alert.severity,
-                'message': alert.message,
-                'value': alert.value,
-                'threshold': alert.threshold,
-                'unit': alert.unit,
-                'timestamp': alert.triggered_at.isoformat(),
-                'slackChannel': channel,
+                "alertId": str(alert.id),
+                "deviceId": device.device_id,
+                "deviceName": device.name,
+                "plant": area.plant.code,
+                "area": area.code,
+                "alertType": alert.alert_type,
+                "severity": alert.severity,
+                "message": alert.message,
+                "value": alert.value,
+                "threshold": alert.threshold,
+                "unit": alert.unit,
+                "timestamp": alert.triggered_at.isoformat(),
+                "slackChannel": channel,
             }
 
             producer = AlertService.get_kafka_producer()
             producer.produce(
-                topic='alerts.notifications',
+                topic="alerts.notifications",
                 key=str(alert.id),
                 value=json.dumps(event),
-                callback=AlertService._delivery_callback
+                callback=AlertService._delivery_callback,
             )
             producer.poll(0)  # Trigger callbacks
 
             alert.notified_slack = True
             alert.notified_at = dj_timezone.now()
-            alert.save(update_fields=['notified_slack', 'notified_at'])
+            alert.save(update_fields=["notified_slack", "notified_at"])
 
             logger.info(f"Alert sent to Kafka: {alert.id}")
 
@@ -228,18 +228,18 @@ class AlertService:
             area = device.cell.line.area
 
             alert_data = {
-                'alert_id': str(alert.id),
-                'device_id': device.device_id,
-                'device_name': device.name,
-                'area': area.code,
-                'plant': area.plant.code,
-                'severity': alert.severity,
-                'status': alert.status,
-                'message': alert.message,
-                'value': alert.value,
-                'threshold': alert.threshold,
-                'unit': alert.unit,
-                'triggered_at': alert.triggered_at.isoformat(),
+                "alert_id": str(alert.id),
+                "device_id": device.device_id,
+                "device_name": device.name,
+                "area": area.code,
+                "plant": area.plant.code,
+                "severity": alert.severity,
+                "status": alert.status,
+                "message": alert.message,
+                "value": alert.value,
+                "threshold": alert.threshold,
+                "unit": alert.unit,
+                "triggered_at": alert.triggered_at.isoformat(),
             }
 
             _run_async(broadcast_new_alert(alert_data))
@@ -255,13 +255,13 @@ class AlertService:
             from .socketio import broadcast_alert_resolved
 
             alert_data = {
-                'alert_id': str(alert.id),
-                'device_id': alert.device.device_id,
-                'area': area_code,
-                'status': 'resolved',
-                'resolved_by': alert.resolved_by,
-                'resolved_at': alert.resolved_at.isoformat(),
-                'duration_seconds': alert.duration_seconds,
+                "alert_id": str(alert.id),
+                "device_id": alert.device.device_id,
+                "area": area_code,
+                "status": "resolved",
+                "resolved_by": alert.resolved_by,
+                "resolved_at": alert.resolved_at.isoformat(),
+                "duration_seconds": alert.duration_seconds,
             }
 
             _run_async(broadcast_alert_resolved(alert_data))
@@ -274,7 +274,7 @@ class AlertService:
     def acknowledge_alert(alert_id: str, user: str) -> Optional[Alert]:
         """Acknowledge an alert."""
         try:
-            alert = Alert.objects.get(id=alert_id, status='active')
+            alert = Alert.objects.get(id=alert_id, status="active")
             alert.acknowledge(user)
             logger.info(f"Alert acknowledged: {alert_id} by {user}")
             return alert
@@ -282,12 +282,13 @@ class AlertService:
             return None
 
     @staticmethod
-    def resolve_alert(alert_id: str, user: str = 'system', notes: str = '') -> Optional[Alert]:
+    def resolve_alert(
+        alert_id: str, user: str = "system", notes: str = ""
+    ) -> Optional[Alert]:
         """Resolve an alert and archive to history."""
         try:
-            alert = Alert.objects.select_related('device__cell__line__area__plant').get(
-                id=alert_id,
-                status__in=['active', 'acknowledged']
+            alert = Alert.objects.select_related("device__cell__line__area__plant").get(
+                id=alert_id, status__in=["active", "acknowledged"]
             )
             alert.resolve(user)
 
@@ -327,14 +328,12 @@ class AlertService:
 
     @staticmethod
     def get_active_alerts(
-        area: Optional[str] = None,
-        severity: Optional[str] = None,
-        limit: int = 100
+        area: Optional[str] = None, severity: Optional[str] = None, limit: int = 100
     ) -> List[Alert]:
         """Get active alerts with optional filters."""
         queryset = Alert.objects.filter(
-            status__in=['active', 'acknowledged']
-        ).select_related('device', 'rule')
+            status__in=["active", "acknowledged"]
+        ).select_related("device", "rule")
 
         if area:
             queryset = queryset.filter(device__cell__line__area__code=area)
@@ -352,21 +351,17 @@ class AlertService:
         alerts = Alert.objects.filter(triggered_at__gte=cutoff)
 
         by_severity = {}
-        for sev in ['critical', 'high', 'medium', 'low', 'info']:
+        for sev in ["critical", "high", "medium", "low", "info"]:
             by_severity[sev] = alerts.filter(severity=sev).count()
 
         by_status = {}
-        for status in ['active', 'acknowledged', 'resolved']:
+        for status in ["active", "acknowledged", "resolved"]:
             by_status[status] = alerts.filter(status=status).count()
 
         return {
-            'period_hours': hours,
-            'total': alerts.count(),
-            'active': alerts.filter(status='active').count(),
-            'by_severity': by_severity,
-            'by_status': by_status,
+            "period_hours": hours,
+            "total": alerts.count(),
+            "active": alerts.filter(status="active").count(),
+            "by_severity": by_severity,
+            "by_status": by_status,
         }
-
-
-# Import models for Q objects
-from django.db import models

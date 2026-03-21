@@ -1,29 +1,22 @@
 """REST API views for telemetry data."""
-import logging
-from datetime import datetime, timedelta, timezone
 
-from rest_framework import viewsets, status
+import logging
+
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
 
-from .services import TelemetryService, TimeRange, AggregationInterval
 from .serializers import (
-    TelemetryPointSerializer,
-    TelemetryRecordSerializer,
-    AggregatedTelemetrySerializer,
-    DeviceLatestValueSerializer,
-    DeviceStatisticsSerializer,
+    AnomalyDetectionSerializer,
     AreaOverviewSerializer,
-    PlantDashboardSerializer,
-    AnomalySerializer,
-    TelemetryQuerySerializer,
     BatchTelemetrySerializer,
     DeviceCompareSerializer,
-    AnomalyDetectionSerializer,
+    DeviceStatisticsSerializer,
     TelemetryEventSerializer,
+    TelemetryQuerySerializer,
 )
+from .services import AggregationInterval, TelemetryService, TimeRange
 from .tdengine import init_tdengine_schema
 
 logger = logging.getLogger(__name__)
@@ -40,7 +33,9 @@ class TelemetryViewSet(viewsets.ViewSet):
     - Statistics
     """
 
-    @action(detail=False, methods=['get'], url_path='device/(?P<device_id>[^/.]+)/history')
+    @action(
+        detail=False, methods=["get"], url_path="device/(?P<device_id>[^/.]+)/history"
+    )
     def device_history(self, request, device_id=None):
         """
         Get historical telemetry for a device.
@@ -58,52 +53,49 @@ class TelemetryViewSet(viewsets.ViewSet):
 
         # Parse time range
         time_range = None
-        if params.get('time_range'):
+        if params.get("time_range"):
             time_range_map = {
-                '1h': TimeRange.LAST_HOUR,
-                '6h': TimeRange.LAST_6_HOURS,
-                '24h': TimeRange.LAST_24_HOURS,
-                '7d': TimeRange.LAST_7_DAYS,
-                '30d': TimeRange.LAST_30_DAYS,
+                "1h": TimeRange.LAST_HOUR,
+                "6h": TimeRange.LAST_6_HOURS,
+                "24h": TimeRange.LAST_24_HOURS,
+                "7d": TimeRange.LAST_7_DAYS,
+                "30d": TimeRange.LAST_30_DAYS,
             }
-            time_range = time_range_map.get(params['time_range'])
+            time_range = time_range_map.get(params["time_range"])
 
         # Parse interval
         interval = None
-        if params.get('interval') and params['interval'] != 'raw':
+        if params.get("interval") and params["interval"] != "raw":
             interval_map = {
-                '1m': AggregationInterval.ONE_MINUTE,
-                '5m': AggregationInterval.FIVE_MINUTES,
-                '15m': AggregationInterval.FIFTEEN_MINUTES,
-                '1h': AggregationInterval.ONE_HOUR,
-                '1d': AggregationInterval.ONE_DAY,
+                "1m": AggregationInterval.ONE_MINUTE,
+                "5m": AggregationInterval.FIVE_MINUTES,
+                "15m": AggregationInterval.FIFTEEN_MINUTES,
+                "1h": AggregationInterval.ONE_HOUR,
+                "1d": AggregationInterval.ONE_DAY,
             }
-            interval = interval_map.get(params['interval'])
+            interval = interval_map.get(params["interval"])
 
         try:
             data = TelemetryService.get_device_history(
                 device_id=device_id,
-                start_time=params.get('start_time'),
-                end_time=params.get('end_time'),
+                start_time=params.get("start_time"),
+                end_time=params.get("end_time"),
                 time_range=time_range,
                 interval=interval,
-                limit=params.get('limit', 10000)
+                limit=params.get("limit", 10000),
             )
 
-            return Response({
-                'device_id': device_id,
-                'count': len(data),
-                'data': data
-            })
+            return Response({"device_id": device_id, "count": len(data), "data": data})
 
         except Exception as e:
             logger.error(f"Error querying device history: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'], url_path='device/(?P<device_id>[^/.]+)/latest')
+    @action(
+        detail=False, methods=["get"], url_path="device/(?P<device_id>[^/.]+)/latest"
+    )
     def device_latest(self, request, device_id=None):
         """Get the latest value for a device."""
         try:
@@ -113,18 +105,19 @@ class TelemetryViewSet(viewsets.ViewSet):
                 return Response(data)
             else:
                 return Response(
-                    {'error': 'No data found for device'},
-                    status=status.HTTP_404_NOT_FOUND
+                    {"error": "No data found for device"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
         except Exception as e:
             logger.error(f"Error querying latest value: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'], url_path='device/(?P<device_id>[^/.]+)/stats')
+    @action(
+        detail=False, methods=["get"], url_path="device/(?P<device_id>[^/.]+)/stats"
+    )
     def device_stats(self, request, device_id=None):
         """
         Get statistics for a device.
@@ -132,12 +125,11 @@ class TelemetryViewSet(viewsets.ViewSet):
         Query parameters:
         - period: 1h, 6h, 24h, 7d, 30d (default 24h)
         """
-        period = request.query_params.get('period', '24h')
+        period = request.query_params.get("period", "24h")
 
         try:
             data = TelemetryService.get_device_statistics(
-                device_id=device_id,
-                period=period
+                device_id=device_id, period=period
             )
 
             serializer = DeviceStatisticsSerializer(data)
@@ -146,11 +138,12 @@ class TelemetryViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Error querying device stats: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'], url_path='device/(?P<device_id>[^/.]+)/anomalies')
+    @action(
+        detail=False, methods=["get"], url_path="device/(?P<device_id>[^/.]+)/anomalies"
+    )
     def device_anomalies(self, request, device_id=None):
         """
         Detect anomalies for a device.
@@ -166,24 +159,25 @@ class TelemetryViewSet(viewsets.ViewSet):
         try:
             anomalies = TelemetryService.detect_anomalies(
                 device_id=device_id,
-                period=params.get('period', '24h'),
-                std_threshold=params.get('std_threshold', 3.0)
+                period=params.get("period", "24h"),
+                std_threshold=params.get("std_threshold", 3.0),
             )
 
-            return Response({
-                'device_id': device_id,
-                'count': len(anomalies),
-                'anomalies': anomalies
-            })
+            return Response(
+                {
+                    "device_id": device_id,
+                    "count": len(anomalies),
+                    "anomalies": anomalies,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error detecting anomalies: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def latest(self, request):
         """
         Get latest values for multiple devices.
@@ -192,29 +186,22 @@ class TelemetryViewSet(viewsets.ViewSet):
         - device_ids: comma-separated device IDs
         - area: filter by area
         """
-        device_ids_param = request.query_params.get('device_ids')
-        device_ids = device_ids_param.split(',') if device_ids_param else None
-        area = request.query_params.get('area')
+        device_ids_param = request.query_params.get("device_ids")
+        device_ids = device_ids_param.split(",") if device_ids_param else None
+        area = request.query_params.get("area")
 
         try:
-            data = TelemetryService.get_latest_values(
-                device_ids=device_ids,
-                area=area
-            )
+            data = TelemetryService.get_latest_values(device_ids=device_ids, area=area)
 
-            return Response({
-                'count': len(data),
-                'data': data
-            })
+            return Response({"count": len(data), "data": data})
 
         except Exception as e:
             logger.error(f"Error querying latest values: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def record(self, request):
         """
         Record telemetry data points.
@@ -237,22 +224,24 @@ class TelemetryViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
-            records = serializer.validated_data['records']
+            records = serializer.validated_data["records"]
             count = TelemetryService.record_telemetry(records)
 
-            return Response({
-                'recorded': count,
-                'message': f'Successfully recorded {count} telemetry points'
-            }, status=status.HTTP_201_CREATED)
+            return Response(
+                {
+                    "recorded": count,
+                    "message": f"Successfully recorded {count} telemetry points",
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
         except Exception as e:
             logger.error(f"Error recording telemetry: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def compare(self, request):
         """
         Compare multiple devices over a time range.
@@ -271,22 +260,18 @@ class TelemetryViewSet(viewsets.ViewSet):
 
         try:
             data = TelemetryService.compare_devices(
-                device_ids=params['device_ids'],
-                start_time=params['start_time'],
-                end_time=params['end_time'],
-                interval=params.get('interval', '1h')
+                device_ids=params["device_ids"],
+                start_time=params["start_time"],
+                end_time=params["end_time"],
+                interval=params.get("interval", "1h"),
             )
 
-            return Response({
-                'device_count': len(params['device_ids']),
-                'data': data
-            })
+            return Response({"device_count": len(params["device_ids"]), "data": data})
 
         except Exception as e:
             logger.error(f"Error comparing devices: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -295,7 +280,7 @@ class AreaViewSet(viewsets.ViewSet):
     ViewSet for area-level telemetry operations.
     """
 
-    @action(detail=False, methods=['get'], url_path='(?P<area>[^/.]+)/overview')
+    @action(detail=False, methods=["get"], url_path="(?P<area>[^/.]+)/overview")
     def overview(self, request, area=None):
         """Get overview of all devices in an area."""
         try:
@@ -306,26 +291,20 @@ class AreaViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Error querying area overview: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'], url_path='(?P<area>[^/.]+)/latest')
+    @action(detail=False, methods=["get"], url_path="(?P<area>[^/.]+)/latest")
     def latest(self, request, area=None):
         """Get latest values for all devices in an area."""
         try:
             data = TelemetryService.get_latest_values(area=area)
-            return Response({
-                'area': area,
-                'count': len(data),
-                'data': data
-            })
+            return Response({"area": area, "count": len(data), "data": data})
 
         except Exception as e:
             logger.error(f"Error querying area latest values: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -343,8 +322,7 @@ class PlantDashboardView(APIView):
         except Exception as e:
             logger.error(f"Error querying plant dashboard: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -361,32 +339,30 @@ class TelemetryEventView(APIView):
 
         try:
             success = TelemetryService.record_event(
-                device_id=data['device_id'],
-                plant=data['plant'],
-                area=data['area'],
-                event_type=data['event_type'],
-                severity=data['severity'],
-                message=data['message'],
-                value=data.get('value'),
-                threshold=data.get('threshold')
+                device_id=data["device_id"],
+                plant=data["plant"],
+                area=data["area"],
+                event_type=data["event_type"],
+                severity=data["severity"],
+                message=data["message"],
+                value=data.get("value"),
+                threshold=data.get("threshold"),
             )
 
             if success:
                 return Response(
-                    {'message': 'Event recorded'},
-                    status=status.HTTP_201_CREATED
+                    {"message": "Event recorded"}, status=status.HTTP_201_CREATED
                 )
             else:
                 return Response(
-                    {'error': 'Failed to record event'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    {"error": "Failed to record event"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
         except Exception as e:
             logger.error(f"Error recording event: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -401,16 +377,15 @@ class TDengineSchemaView(APIView):
             success = init_tdengine_schema()
 
             if success:
-                return Response({'message': 'TDengine schema initialized'})
+                return Response({"message": "TDengine schema initialized"})
             else:
                 return Response(
-                    {'error': 'Failed to initialize schema'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    {"error": "Failed to initialize schema"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
         except Exception as e:
             logger.error(f"Error initializing TDengine schema: {e}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

@@ -1,4 +1,5 @@
 """ForgeLink Core Middleware"""
+
 import logging
 import time
 from typing import Optional
@@ -6,6 +7,7 @@ from typing import Optional
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
+
 import httpx
 import jwt
 
@@ -65,6 +67,7 @@ class JWTAuthenticationMiddleware:
 
         try:
             from apps.core.models import Role
+
             return Role.get_permissions_for_role(role_code)
         except Exception as e:
             logger.warning(f"Failed to resolve permissions for role {role_code}: {e}")
@@ -107,10 +110,7 @@ class JWTAuthenticationMiddleware:
 
         # Validate and decode
         return jwt.decode(
-            token,
-            key,
-            algorithms=["RS256"],
-            options={"verify_aud": False}
+            token, key, algorithms=["RS256"], options={"verify_aud": False}
         )
 
     def _get_jwks(self) -> dict:
@@ -122,19 +122,12 @@ class JWTAuthenticationMiddleware:
 
         # Fetch from IDP
         try:
-            response = httpx.get(
-                settings.IDP["JWKS_URL"],
-                timeout=10.0
-            )
+            response = httpx.get(settings.IDP["JWKS_URL"], timeout=10.0)
             response.raise_for_status()
             jwks = response.json()
 
             # Cache for 1 hour
-            cache.set(
-                self.JWKS_CACHE_KEY,
-                jwks,
-                settings.IDP["JWKS_CACHE_TTL"]
-            )
+            cache.set(self.JWKS_CACHE_KEY, jwks, settings.IDP["JWKS_CACHE_TTL"])
 
             return jwks
         except Exception as e:
@@ -162,19 +155,15 @@ class RateLimitMiddleware:
         user_id = self._get_user_id(request)
 
         # Check user rate limit
-        if user_id and not self._check_rate_limit(f"rate:user:{user_id}", self.user_limit):
-            return JsonResponse(
-                {"error": "Rate limit exceeded"},
-                status=429
-            )
+        if user_id and not self._check_rate_limit(
+            f"rate:user:{user_id}", self.user_limit
+        ):
+            return JsonResponse({"error": "Rate limit exceeded"}, status=429)
 
         # Check endpoint rate limit
         endpoint_key = f"rate:endpoint:{request.path}"
         if not self._check_rate_limit(endpoint_key, self.endpoint_limit):
-            return JsonResponse(
-                {"error": "Endpoint rate limit exceeded"},
-                status=429
-            )
+            return JsonResponse({"error": "Endpoint rate limit exceeded"}, status=429)
 
         return self.get_response(request)
 

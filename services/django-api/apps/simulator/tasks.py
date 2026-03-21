@@ -1,27 +1,29 @@
 """Celery tasks for steel plant simulation."""
+
 import json
+import logging
 import math
 import random
-import logging
+from datetime import timedelta
 from decimal import Decimal
-from datetime import datetime, timedelta
 from typing import Optional
 
-from celery import shared_task
-from django.utils import timezone
-from django.db import transaction
 from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
+
 import redis
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
 # Redis client for publishing OPC-UA value updates
 redis_client = redis.Redis.from_url(
-    getattr(settings, 'CELERY_BROKER_URL', 'redis://localhost:6379/2')
+    getattr(settings, "CELERY_BROKER_URL", "redis://localhost:6379/2")
 )
 
 # OPC-UA update channel
-OPCUA_CHANNEL = 'forgelink:opcua:values'
+OPCUA_CHANNEL = "forgelink:opcua:values"
 
 
 @shared_task(bind=True, max_retries=3)
@@ -32,16 +34,18 @@ def update_device_value(self, device_id: str) -> dict:
     This task calculates a new value based on the device's simulation mode,
     applies noise/drift, checks thresholds, and publishes to Redis for OPC-UA server.
     """
-    from .models import SimulatedDevice, SimulationEvent
+    from .models import SimulatedDevice
 
     try:
-        device = SimulatedDevice.objects.select_related('plc', 'profile').get(id=device_id)
+        device = SimulatedDevice.objects.select_related("plc", "profile").get(
+            id=device_id
+        )
     except SimulatedDevice.DoesNotExist:
         logger.warning(f"Device {device_id} not found")
-        return {'error': 'device not found'}
+        return {"error": "device not found"}
 
-    if device.status != 'running':
-        return {'status': 'device not running'}
+    if device.status != "running":
+        return {"status": "device not running"}
 
     # Calculate new value
     new_value = calculate_new_value(device)
@@ -60,19 +64,25 @@ def update_device_value(self, device_id: str) -> dict:
         device.messages_sent += 1
         device.last_published_at = timezone.now()
         device.last_value_change_at = timezone.now()
-        device.save(update_fields=[
-            'current_value', 'quality', 'sequence_number',
-            'messages_sent', 'last_published_at', 'last_value_change_at'
-        ])
+        device.save(
+            update_fields=[
+                "current_value",
+                "quality",
+                "sequence_number",
+                "messages_sent",
+                "last_published_at",
+                "last_value_change_at",
+            ]
+        )
 
     # Publish to Redis for OPC-UA server
     publish_to_opcua(device, new_value, quality)
 
     return {
-        'device_id': str(device.id),
-        'value': float(new_value),
-        'quality': quality,
-        'sequence': device.sequence_number
+        "device_id": str(device.id),
+        "value": float(new_value),
+        "quality": quality,
+        "sequence": device.sequence_number,
     }
 
 
@@ -81,15 +91,17 @@ def calculate_new_value(device) -> float:
     profile = device.profile
     min_val = float(device.effective_min)
     max_val = float(device.effective_max)
-    current = float(device.current_value) if device.current_value else (min_val + max_val) / 2
+    current = (
+        float(device.current_value) if device.current_value else (min_val + max_val) / 2
+    )
     target = float(device.target_value) if device.target_value else None
 
     mode = device.simulation_mode
 
-    if mode == 'constant':
+    if mode == "constant":
         return target if target else current
 
-    elif mode == 'random_walk':
+    elif mode == "random_walk":
         # Random walk with drift toward center
         noise = float(device.noise_override or profile.noise_factor)
         step = random.gauss(0, noise * (max_val - min_val))
@@ -100,7 +112,7 @@ def calculate_new_value(device) -> float:
         drift = float(profile.drift_rate) * (center - current)
         new_value += drift
 
-    elif mode == 'sine_wave':
+    elif mode == "sine_wave":
         # Sinusoidal variation
         period = device.sine_period_seconds or 60
         amplitude = (max_val - min_val) / 2
@@ -112,7 +124,7 @@ def calculate_new_value(device) -> float:
         noise = float(device.noise_override or profile.noise_factor)
         new_value += random.gauss(0, noise * amplitude * 0.1)
 
-    elif mode == 'ramp':
+    elif mode == "ramp":
         # Linear ramp toward target
         if target:
             rate = float(device.ramp_rate_per_second or 1.0)
@@ -123,7 +135,7 @@ def calculate_new_value(device) -> float:
         else:
             new_value = current
 
-    elif mode == 'step':
+    elif mode == "step":
         # Step changes at random intervals
         if random.random() < 0.05:  # 5% chance of step
             step_size = (max_val - min_val) * 0.1
@@ -131,9 +143,11 @@ def calculate_new_value(device) -> float:
         else:
             new_value = current
 
-    elif mode == 'realistic':
+    elif mode == "realistic":
         # Process-based realistic simulation
-        new_value = simulate_realistic_process(device, current, target, min_val, max_val)
+        new_value = simulate_realistic_process(
+            device, current, target, min_val, max_val
+        )
 
     else:
         new_value = current
@@ -144,8 +158,9 @@ def calculate_new_value(device) -> float:
     return new_value
 
 
-def simulate_realistic_process(device, current: float, target: Optional[float],
-                                min_val: float, max_val: float) -> float:
+def simulate_realistic_process(
+    device, current: float, target: Optional[float], min_val: float, max_val: float
+) -> float:
     """
     Simulate realistic steel plant process behavior.
 
@@ -160,7 +175,7 @@ def simulate_realistic_process(device, current: float, target: Optional[float],
     sensor_type = profile.sensor_type
     noise = float(device.noise_override or profile.noise_factor)
 
-    if sensor_type == 'temperature':
+    if sensor_type == "temperature":
         # Temperature changes slowly (thermal inertia)
         # EAF temperatures fluctuate around setpoint
         setpoint = target or ((min_val + max_val) * 0.6)  # Higher than center
@@ -168,21 +183,21 @@ def simulate_realistic_process(device, current: float, target: Optional[float],
         process_noise = random.gauss(0, noise * (max_val - min_val) * 0.5)
         new_value = current * inertia + setpoint * (1 - inertia) + process_noise
 
-    elif sensor_type == 'pressure':
+    elif sensor_type == "pressure":
         # Pressure can change more quickly
         setpoint = target or ((min_val + max_val) / 2)
         inertia = 0.9
         process_noise = random.gauss(0, noise * (max_val - min_val))
         new_value = current * inertia + setpoint * (1 - inertia) + process_noise
 
-    elif sensor_type == 'flow':
+    elif sensor_type == "flow":
         # Flow is generally stable with occasional variations
         setpoint = target or ((min_val + max_val) / 2)
         inertia = 0.95
         process_noise = random.gauss(0, noise * (max_val - min_val) * 0.3)
         new_value = current * inertia + setpoint * (1 - inertia) + process_noise
 
-    elif sensor_type == 'vibration':
+    elif sensor_type == "vibration":
         # Vibration is noisy with occasional spikes
         base_value = (min_val + max_val) * 0.3
         noise_value = random.gauss(0, noise * (max_val - min_val) * 2)
@@ -194,14 +209,14 @@ def simulate_realistic_process(device, current: float, target: Optional[float],
         else:
             new_value = base_value + abs(noise_value)
 
-    elif sensor_type == 'level':
+    elif sensor_type == "level":
         # Level changes slowly
         setpoint = target or ((min_val + max_val) / 2)
         inertia = 0.99
         process_noise = random.gauss(0, noise * (max_val - min_val) * 0.1)
         new_value = current * inertia + setpoint * (1 - inertia) + process_noise
 
-    elif sensor_type == 'current':
+    elif sensor_type == "current":
         # Electrode current fluctuates with arc behavior
         setpoint = target or ((min_val + max_val) * 0.7)
         inertia = 0.85
@@ -209,7 +224,7 @@ def simulate_realistic_process(device, current: float, target: Optional[float],
         arc_noise = random.gauss(0, noise * (max_val - min_val) * 1.5)
         new_value = current * inertia + setpoint * (1 - inertia) + arc_noise
 
-    elif sensor_type == 'force':
+    elif sensor_type == "force":
         # Roll force varies with material
         setpoint = target or ((min_val + max_val) / 2)
         inertia = 0.92
@@ -232,42 +247,44 @@ def apply_fault_effects(device, value: float) -> tuple[float, str]:
     min_val = float(device.effective_min)
     max_val = float(device.effective_max)
 
-    if fault_type == 'none':
-        return value, 'good'
+    if fault_type == "none":
+        return value, "good"
 
     # Check if fault has expired
     if device.fault_end and timezone.now() > device.fault_end:
-        device.fault_type = 'none'
-        device.save(update_fields=['fault_type'])
-        return value, 'good'
+        device.fault_type = "none"
+        device.save(update_fields=["fault_type"])
+        return value, "good"
 
-    if fault_type == 'stuck':
+    if fault_type == "stuck":
         # Value doesn't change
-        return float(device.current_value or value), 'bad'
+        return float(device.current_value or value), "bad"
 
-    elif fault_type == 'drift':
+    elif fault_type == "drift":
         # Excessive drift away from normal
         drift_direction = 1 if random.random() > 0.5 else -1
         drift_amount = (max_val - min_val) * 0.01 * drift_direction
-        return value + drift_amount, 'uncertain'
+        return value + drift_amount, "uncertain"
 
-    elif fault_type == 'noise':
+    elif fault_type == "noise":
         # Excessive noise
         noise = random.gauss(0, (max_val - min_val) * 0.2)
-        return value + noise, 'uncertain'
+        return value + noise, "uncertain"
 
-    elif fault_type == 'spike':
+    elif fault_type == "spike":
         # Random spikes
         if random.random() < 0.2:  # 20% chance of spike
-            spike = random.choice([-1, 1]) * (max_val - min_val) * random.uniform(0.3, 0.8)
-            return max(min_val, min(max_val, value + spike)), 'uncertain'
-        return value, 'uncertain'
+            spike = (
+                random.choice([-1, 1]) * (max_val - min_val) * random.uniform(0.3, 0.8)
+            )
+            return max(min_val, min(max_val, value + spike)), "uncertain"
+        return value, "uncertain"
 
-    elif fault_type == 'dead':
+    elif fault_type == "dead":
         # Sensor dead - returns zero or last value
-        return 0.0, 'bad'
+        return 0.0, "bad"
 
-    return value, 'good'
+    return value, "good"
 
 
 def check_thresholds(device, value: float):
@@ -280,62 +297,62 @@ def check_thresholds(device, value: float):
         SimulationEvent.objects.create(
             device=device,
             plc=device.plc,
-            event_type='critical_high',
-            severity='critical',
+            event_type="critical_high",
+            severity="critical",
             message=f"CRITICAL: {device.name} exceeded critical high threshold",
             value=Decimal(str(value)),
-            threshold=profile.critical_high
+            threshold=profile.critical_high,
         )
 
     elif profile.high_threshold and value > float(profile.high_threshold):
         SimulationEvent.objects.create(
             device=device,
             plc=device.plc,
-            event_type='threshold_high',
-            severity='high',
+            event_type="threshold_high",
+            severity="high",
             message=f"WARNING: {device.name} exceeded high threshold",
             value=Decimal(str(value)),
-            threshold=profile.high_threshold
+            threshold=profile.high_threshold,
         )
 
     elif profile.critical_low and value < float(profile.critical_low):
         SimulationEvent.objects.create(
             device=device,
             plc=device.plc,
-            event_type='critical_low',
-            severity='critical',
+            event_type="critical_low",
+            severity="critical",
             message=f"CRITICAL: {device.name} below critical low threshold",
             value=Decimal(str(value)),
-            threshold=profile.critical_low
+            threshold=profile.critical_low,
         )
 
     elif profile.low_threshold and value < float(profile.low_threshold):
         SimulationEvent.objects.create(
             device=device,
             plc=device.plc,
-            event_type='threshold_low',
-            severity='high',
+            event_type="threshold_low",
+            severity="high",
             message=f"WARNING: {device.name} below low threshold",
             value=Decimal(str(value)),
-            threshold=profile.low_threshold
+            threshold=profile.low_threshold,
         )
 
 
 def publish_to_opcua(device, value: float, quality: str):
     """Publish value update to Redis for OPC-UA server."""
     message = {
-        'device_id': str(device.id),
-        'opc_node_id': device.opc_node_id,
-        'mqtt_topic': device.mqtt_topic,
-        'value': value,
-        'quality': quality,
-        'timestamp': timezone.now().isoformat(),
-        'sequence': device.sequence_number,
-        'unit': device.profile.unit,
-        'plant': device.plc.plant,
-        'area': device.plc.area,
-        'line': device.plc.line,
-        'cell': device.plc.cell,
+        "device_id": str(device.id),
+        "opc_node_id": device.opc_node_id,
+        "mqtt_topic": device.mqtt_topic,
+        "value": value,
+        "quality": quality,
+        "timestamp": timezone.now().isoformat(),
+        "sequence": device.sequence_number,
+        "unit": device.profile.unit,
+        "plant": device.plc.plant,
+        "area": device.plc.area,
+        "line": device.plc.line,
+        "cell": device.plc.cell,
     }
 
     try:
@@ -355,9 +372,8 @@ def run_simulation_cycle():
     from .models import SimulatedDevice
 
     running_devices = SimulatedDevice.objects.filter(
-        status='running',
-        plc__is_simulating=True
-    ).values_list('id', flat=True)
+        status="running", plc__is_simulating=True
+    ).values_list("id", flat=True)
 
     count = 0
     for device_id in running_devices:
@@ -365,7 +381,7 @@ def run_simulation_cycle():
         count += 1
 
     logger.info(f"Dispatched updates for {count} devices")
-    return {'devices_updated': count}
+    return {"devices_updated": count}
 
 
 @shared_task
@@ -373,12 +389,12 @@ def update_plc_heartbeats():
     """Update heartbeats for all online PLCs."""
     from .models import SimulatedPLC
 
-    count = SimulatedPLC.objects.filter(
-        is_online=True
-    ).update(last_heartbeat=timezone.now())
+    count = SimulatedPLC.objects.filter(is_online=True).update(
+        last_heartbeat=timezone.now()
+    )
 
     logger.info(f"Updated heartbeats for {count} PLCs")
-    return {'plcs_updated': count}
+    return {"plcs_updated": count}
 
 
 @shared_task
@@ -387,29 +403,26 @@ def check_expired_faults():
     from .models import SimulatedDevice, SimulationEvent
 
     now = timezone.now()
-    expired_devices = SimulatedDevice.objects.filter(
-        fault_end__lt=now
-    ).exclude(fault_type='none')
+    expired_devices = SimulatedDevice.objects.filter(fault_end__lt=now).exclude(
+        fault_type="none"
+    )
 
     for device in expired_devices:
         SimulationEvent.objects.create(
             device=device,
             plc=device.plc,
-            event_type='device_recovery',
-            severity='info',
+            event_type="device_recovery",
+            severity="info",
             message=f"{device.name} recovered from {device.fault_type} fault",
-            value=device.current_value
+            value=device.current_value,
         )
 
-    count = expired_devices.update(
-        fault_type='none',
-        quality='good'
-    )
+    count = expired_devices.update(fault_type="none", quality="good")
 
     if count:
         logger.info(f"Cleared {count} expired faults")
 
-    return {'faults_cleared': count}
+    return {"faults_cleared": count}
 
 
 @shared_task
@@ -419,39 +432,45 @@ def cleanup_old_events(days: int = 7):
 
     cutoff = timezone.now() - timedelta(days=days)
     count, _ = SimulationEvent.objects.filter(
-        created_at__lt=cutoff,
-        acknowledged=True
+        created_at__lt=cutoff, acknowledged=True
     ).delete()
 
     logger.info(f"Deleted {count} old events")
-    return {'events_deleted': count}
+    return {"events_deleted": count}
 
 
 @shared_task
 def update_session_stats():
     """Update statistics for running sessions."""
-    from .models import SimulationSession, SimulatedDevice, SimulationEvent
-    from django.db.models import Sum, Count
+    from django.db.models import Sum
 
-    running_sessions = SimulationSession.objects.filter(status='running')
+    from .models import SimulationEvent, SimulationSession
+
+    running_sessions = SimulationSession.objects.filter(status="running")
 
     for session in running_sessions:
         # Aggregate device stats
         device_stats = session.devices.aggregate(
-            messages=Sum('messages_sent'),
-            errors=Sum('error_count')
+            messages=Sum("messages_sent"), errors=Sum("error_count")
         )
 
         # Count events
         event_count = SimulationEvent.objects.filter(session=session).count()
 
         # Update session
-        session.messages_sent = device_stats['messages'] or 0
+        session.messages_sent = device_stats["messages"] or 0
         session.events_generated = event_count
-        session.error_count = device_stats['errors'] or 0
-        session.save(update_fields=['messages_sent', 'events_generated', 'error_count', 'updated_at'])
+        session.error_count = device_stats["errors"] or 0
+        session.save(
+            update_fields=[
+                "messages_sent",
+                "events_generated",
+                "error_count",
+                "updated_at",
+            ]
+        )
 
-    return {'sessions_updated': running_sessions.count()}
+    return {"sessions_updated": running_sessions.count()}
 
 
 @shared_task
@@ -466,19 +485,16 @@ def generate_random_fault():
 
     # Only 0.1% chance per cycle
     if random.random() > 0.001:
-        return {'fault_generated': False}
+        return {"fault_generated": False}
 
     # Get a random running device
-    devices = SimulatedDevice.objects.filter(
-        status='running',
-        fault_type='none'
-    )
+    devices = SimulatedDevice.objects.filter(status="running", fault_type="none")
 
     if not devices.exists():
-        return {'fault_generated': False}
+        return {"fault_generated": False}
 
     device = random.choice(list(devices))
-    fault_types = ['stuck', 'drift', 'noise', 'spike']
+    fault_types = ["stuck", "drift", "noise", "spike"]
     fault_type = random.choice(fault_types)
 
     # Random duration 1-10 minutes
@@ -488,23 +504,23 @@ def generate_random_fault():
     device.fault_type = fault_type
     device.fault_start = timezone.now()
     device.fault_end = fault_end
-    device.quality = 'bad' if fault_type in ['stuck', 'dead'] else 'uncertain'
+    device.quality = "bad" if fault_type in ["stuck", "dead"] else "uncertain"
     device.save()
 
     SimulationEvent.objects.create(
         device=device,
         plc=device.plc,
-        event_type='device_fault',
-        severity='high',
+        event_type="device_fault",
+        severity="high",
         message=f"Fault detected: {fault_type} on {device.name}",
-        value=device.current_value
+        value=device.current_value,
     )
 
     logger.warning(f"Random fault injected: {fault_type} on {device.device_id}")
 
     return {
-        'fault_generated': True,
-        'device': str(device.id),
-        'fault_type': fault_type,
-        'duration': duration
+        "fault_generated": True,
+        "device": str(device.id),
+        "fault_type": fault_type,
+        "duration": duration,
     }

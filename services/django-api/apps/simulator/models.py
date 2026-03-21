@@ -1,8 +1,10 @@
 """Simulator models for full OPC-UA stack simulation."""
+
 import uuid
 from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
 
@@ -13,19 +15,19 @@ class DeviceProfile(models.Model):
     """
 
     class SensorType(models.TextChoices):
-        TEMPERATURE = 'temperature', 'Temperature Sensor'
-        PRESSURE = 'pressure', 'Pressure Sensor'
-        FLOW = 'flow', 'Flow Meter'
-        LEVEL = 'level', 'Level Sensor'
-        VIBRATION = 'vibration', 'Vibration Sensor'
-        CURRENT = 'current', 'Current Sensor'
-        VOLTAGE = 'voltage', 'Voltage Sensor'
-        SPEED = 'speed', 'Speed Sensor'
-        FORCE = 'force', 'Force Sensor'
-        POSITION = 'position', 'Position Sensor'
-        WEIGHT = 'weight', 'Weight Sensor'
-        HUMIDITY = 'humidity', 'Humidity Sensor'
-        GAS_CONCENTRATION = 'gas', 'Gas Concentration'
+        TEMPERATURE = "temperature", "Temperature Sensor"
+        PRESSURE = "pressure", "Pressure Sensor"
+        FLOW = "flow", "Flow Meter"
+        LEVEL = "level", "Level Sensor"
+        VIBRATION = "vibration", "Vibration Sensor"
+        CURRENT = "current", "Current Sensor"
+        VOLTAGE = "voltage", "Voltage Sensor"
+        SPEED = "speed", "Speed Sensor"
+        FORCE = "force", "Force Sensor"
+        POSITION = "position", "Position Sensor"
+        WEIGHT = "weight", "Weight Sensor"
+        HUMIDITY = "humidity", "Humidity Sensor"
+        GAS_CONCENTRATION = "gas", "Gas Concentration"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
@@ -39,21 +41,26 @@ class DeviceProfile(models.Model):
 
     # Physics simulation parameters
     noise_factor = models.DecimalField(
-        max_digits=5, decimal_places=4, default=0.01,
+        max_digits=5,
+        decimal_places=4,
+        default=0.01,
         validators=[MinValueValidator(0), MaxValueValidator(1)],
-        help_text="Random noise as fraction of range (0.01 = 1%)"
+        help_text="Random noise as fraction of range (0.01 = 1%)",
     )
     drift_rate = models.DecimalField(
-        max_digits=8, decimal_places=6, default=0.0001,
-        help_text="Value drift per second as fraction of range"
+        max_digits=8,
+        decimal_places=6,
+        default=0.0001,
+        help_text="Value drift per second as fraction of range",
     )
     response_time_ms = models.PositiveIntegerField(
-        default=100,
-        help_text="Sensor response time in milliseconds"
+        default=100, help_text="Sensor response time in milliseconds"
     )
     dead_band = models.DecimalField(
-        max_digits=8, decimal_places=4, default=0.5,
-        help_text="Minimum change to report (absolute value)"
+        max_digits=8,
+        decimal_places=4,
+        default=0.5,
+        help_text="Minimum change to report (absolute value)",
     )
 
     # Threshold for events
@@ -72,21 +79,19 @@ class DeviceProfile(models.Model):
 
     # Failure simulation
     mtbf_hours = models.PositiveIntegerField(
-        default=8760,
-        help_text="Mean Time Between Failures in hours"
+        default=8760, help_text="Mean Time Between Failures in hours"
     )
     mttr_minutes = models.PositiveIntegerField(
-        default=30,
-        help_text="Mean Time To Repair in minutes"
+        default=30, help_text="Mean Time To Repair in minutes"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Device Profile'
-        verbose_name_plural = 'Device Profiles'
-        ordering = ['sensor_type', 'name']
+        verbose_name = "Device Profile"
+        verbose_name_plural = "Device Profiles"
+        ordering = ["sensor_type", "name"]
 
     def __str__(self):
         return f"{self.name} ({self.sensor_type})"
@@ -99,35 +104,37 @@ class SimulatedPLC(models.Model):
     """
 
     class PLCType(models.TextChoices):
-        SIEMENS_S7 = 'siemens_s7', 'Siemens S7-1500'
-        ALLEN_BRADLEY = 'allen_bradley', 'Allen-Bradley ControlLogix'
-        SCHNEIDER = 'schneider', 'Schneider Modicon'
-        GENERIC = 'generic', 'Generic PLC'
+        SIEMENS_S7 = "siemens_s7", "Siemens S7-1500"
+        ALLEN_BRADLEY = "allen_bradley", "Allen-Bradley ControlLogix"
+        SCHNEIDER = "schneider", "Schneider Modicon"
+        GENERIC = "generic", "Generic PLC"
 
     class Area(models.TextChoices):
-        MELT_SHOP = 'melt-shop', 'Melt Shop'
-        CONTINUOUS_CASTING = 'continuous-casting', 'Continuous Casting'
-        ROLLING_MILL = 'rolling-mill', 'Rolling Mill'
-        FINISHING = 'finishing', 'Finishing'
+        MELT_SHOP = "melt-shop", "Melt Shop"
+        CONTINUOUS_CASTING = "continuous-casting", "Continuous Casting"
+        ROLLING_MILL = "rolling-mill", "Rolling Mill"
+        FINISHING = "finishing", "Finishing"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
-    plc_type = models.CharField(max_length=20, choices=PLCType.choices, default=PLCType.GENERIC)
+    plc_type = models.CharField(
+        max_length=20, choices=PLCType.choices, default=PLCType.GENERIC
+    )
 
     # Location in ISA-95 hierarchy
-    plant = models.CharField(max_length=64, default='steel-plant-kigali')
+    plant = models.CharField(max_length=64, default="steel-plant-kigali")
     area = models.CharField(max_length=32, choices=Area.choices)
     line = models.CharField(max_length=32, help_text="e.g., eaf-1, caster-1, roughing")
-    cell = models.CharField(max_length=32, blank=True, help_text="e.g., electrode-a, mold")
+    cell = models.CharField(
+        max_length=32, blank=True, help_text="e.g., electrode-a, mold"
+    )
 
     # OPC-UA configuration
     opc_namespace = models.CharField(
-        max_length=100, blank=True,
-        help_text="OPC-UA namespace URI"
+        max_length=100, blank=True, help_text="OPC-UA namespace URI"
     )
     opc_node_id_prefix = models.CharField(
-        max_length=200, blank=True,
-        help_text="Prefix for OPC-UA node IDs"
+        max_length=200, blank=True, help_text="Prefix for OPC-UA node IDs"
     )
 
     # Status
@@ -137,12 +144,10 @@ class SimulatedPLC(models.Model):
 
     # Communication settings
     scan_rate_ms = models.PositiveIntegerField(
-        default=1000,
-        help_text="How often to publish values (milliseconds)"
+        default=1000, help_text="How often to publish values (milliseconds)"
     )
     publish_rate_ms = models.PositiveIntegerField(
-        default=1000,
-        help_text="MQTT publish interval (milliseconds)"
+        default=1000, help_text="MQTT publish interval (milliseconds)"
     )
 
     # Metadata
@@ -154,10 +159,10 @@ class SimulatedPLC(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Simulated PLC'
-        verbose_name_plural = 'Simulated PLCs'
-        ordering = ['area', 'line', 'name']
-        unique_together = ['plant', 'area', 'line', 'cell', 'name']
+        verbose_name = "Simulated PLC"
+        verbose_name_plural = "Simulated PLCs"
+        ordering = ["area", "line", "name"]
+        unique_together = ["plant", "area", "line", "cell", "name"]
 
     def __str__(self):
         return f"{self.name} ({self.area}/{self.line})"
@@ -165,22 +170,22 @@ class SimulatedPLC(models.Model):
     @property
     def topic_prefix(self) -> str:
         """Generate MQTT topic prefix for this PLC's location."""
-        parts = ['forgelink', self.plant, self.area, self.line]
+        parts = ["forgelink", self.plant, self.area, self.line]
         if self.cell:
             parts.append(self.cell)
-        return '/'.join(parts)
+        return "/".join(parts)
 
     @property
     def opc_path(self) -> str:
         """Generate OPC-UA path for this PLC."""
         parts = [
-            self.plant.replace('-', ''),
-            self.area.replace('-', ''),
-            self.line.replace('-', ''),
+            self.plant.replace("-", ""),
+            self.area.replace("-", ""),
+            self.line.replace("-", ""),
         ]
         if self.cell:
-            parts.append(self.cell.replace('-', ''))
-        return '/'.join(parts)
+            parts.append(self.cell.replace("-", ""))
+        return "/".join(parts)
 
 
 class SimulatedDevice(models.Model):
@@ -190,54 +195,48 @@ class SimulatedDevice(models.Model):
     """
 
     class Status(models.TextChoices):
-        OFFLINE = 'offline', 'Offline'
-        ONLINE = 'online', 'Online'
-        RUNNING = 'running', 'Running (Simulating)'
-        FAULT = 'fault', 'Fault'
-        MAINTENANCE = 'maintenance', 'Under Maintenance'
+        OFFLINE = "offline", "Offline"
+        ONLINE = "online", "Online"
+        RUNNING = "running", "Running (Simulating)"
+        FAULT = "fault", "Fault"
+        MAINTENANCE = "maintenance", "Under Maintenance"
 
     class Quality(models.TextChoices):
-        GOOD = 'good', 'Good'
-        BAD = 'bad', 'Bad'
-        UNCERTAIN = 'uncertain', 'Uncertain'
+        GOOD = "good", "Good"
+        BAD = "bad", "Bad"
+        UNCERTAIN = "uncertain", "Uncertain"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device_id = models.CharField(
-        max_length=64,
-        help_text="Unique device identifier (e.g., temp-sensor-001)"
+        max_length=64, help_text="Unique device identifier (e.g., temp-sensor-001)"
     )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
     # Relationships
     plc = models.ForeignKey(
-        SimulatedPLC,
-        on_delete=models.CASCADE,
-        related_name='devices'
+        SimulatedPLC, on_delete=models.CASCADE, related_name="devices"
     )
     profile = models.ForeignKey(
-        DeviceProfile,
-        on_delete=models.PROTECT,
-        related_name='devices'
+        DeviceProfile, on_delete=models.PROTECT, related_name="devices"
     )
 
     # Current state
     status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.OFFLINE
+        max_length=20, choices=Status.choices, default=Status.OFFLINE
     )
     current_value = models.DecimalField(
         max_digits=12, decimal_places=4, null=True, blank=True
     )
     target_value = models.DecimalField(
-        max_digits=12, decimal_places=4, null=True, blank=True,
-        help_text="Target value for simulation (sensor will trend toward this)"
+        max_digits=12,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Target value for simulation (sensor will trend toward this)",
     )
     quality = models.CharField(
-        max_length=20,
-        choices=Quality.choices,
-        default=Quality.GOOD
+        max_length=20, choices=Quality.choices, default=Quality.GOOD
     )
     sequence_number = models.BigIntegerField(default=0)
 
@@ -256,36 +255,38 @@ class SimulatedDevice(models.Model):
     simulation_mode = models.CharField(
         max_length=20,
         choices=[
-            ('random_walk', 'Random Walk'),
-            ('sine_wave', 'Sine Wave'),
-            ('step', 'Step Function'),
-            ('ramp', 'Ramp'),
-            ('constant', 'Constant'),
-            ('realistic', 'Realistic (Process-based)'),
+            ("random_walk", "Random Walk"),
+            ("sine_wave", "Sine Wave"),
+            ("step", "Step Function"),
+            ("ramp", "Ramp"),
+            ("constant", "Constant"),
+            ("realistic", "Realistic (Process-based)"),
         ],
-        default='realistic'
+        default="realistic",
     )
     sine_period_seconds = models.PositiveIntegerField(
-        default=60,
-        help_text="Period for sine wave simulation"
+        default=60, help_text="Period for sine wave simulation"
     )
     ramp_rate_per_second = models.DecimalField(
-        max_digits=10, decimal_places=4, null=True, blank=True,
-        help_text="Rate of change for ramp simulation"
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Rate of change for ramp simulation",
     )
 
     # Fault injection
     fault_type = models.CharField(
         max_length=20,
         choices=[
-            ('none', 'No Fault'),
-            ('stuck', 'Stuck Value'),
-            ('drift', 'Excessive Drift'),
-            ('noise', 'Excessive Noise'),
-            ('spike', 'Random Spikes'),
-            ('dead', 'Dead Sensor'),
+            ("none", "No Fault"),
+            ("stuck", "Stuck Value"),
+            ("drift", "Excessive Drift"),
+            ("noise", "Excessive Noise"),
+            ("spike", "Random Spikes"),
+            ("dead", "Dead Sensor"),
         ],
-        default='none'
+        default="none",
     )
     fault_start = models.DateTimeField(null=True, blank=True)
     fault_end = models.DateTimeField(null=True, blank=True)
@@ -301,10 +302,10 @@ class SimulatedDevice(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Simulated Device'
-        verbose_name_plural = 'Simulated Devices'
-        ordering = ['plc', 'device_id']
-        unique_together = ['plc', 'device_id']
+        verbose_name = "Simulated Device"
+        verbose_name_plural = "Simulated Devices"
+        ordering = ["plc", "device_id"]
+        unique_together = ["plc", "device_id"]
 
     def __str__(self):
         return f"{self.device_id} ({self.plc.area}/{self.plc.line})"
@@ -322,12 +323,20 @@ class SimulatedDevice(models.Model):
     @property
     def effective_min(self) -> Decimal:
         """Get effective minimum value (override or profile)."""
-        return self.min_value_override if self.min_value_override is not None else self.profile.min_value
+        return (
+            self.min_value_override
+            if self.min_value_override is not None
+            else self.profile.min_value
+        )
 
     @property
     def effective_max(self) -> Decimal:
         """Get effective maximum value (override or profile)."""
-        return self.max_value_override if self.max_value_override is not None else self.profile.max_value
+        return (
+            self.max_value_override
+            if self.max_value_override is not None
+            else self.profile.max_value
+        )
 
     @property
     def value_range(self) -> Decimal:
@@ -347,11 +356,11 @@ class SimulationSession(models.Model):
     """
 
     class Status(models.TextChoices):
-        PENDING = 'pending', 'Pending'
-        RUNNING = 'running', 'Running'
-        PAUSED = 'paused', 'Paused'
-        STOPPED = 'stopped', 'Stopped'
-        FAILED = 'failed', 'Failed'
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        PAUSED = "paused", "Paused"
+        STOPPED = "stopped", "Stopped"
+        FAILED = "failed", "Failed"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
@@ -359,20 +368,16 @@ class SimulationSession(models.Model):
 
     # Session configuration
     status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.PENDING
+        max_length=20, choices=Status.choices, default=Status.PENDING
     )
     devices = models.ManyToManyField(
-        SimulatedDevice,
-        related_name='sessions',
-        blank=True
+        SimulatedDevice, related_name="sessions", blank=True
     )
     plcs = models.ManyToManyField(
         SimulatedPLC,
-        related_name='sessions',
+        related_name="sessions",
         blank=True,
-        help_text="Include all devices from these PLCs"
+        help_text="Include all devices from these PLCs",
     )
 
     # Timing
@@ -381,14 +386,12 @@ class SimulationSession(models.Model):
     scheduled_start = models.DateTimeField(null=True, blank=True)
     scheduled_stop = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.PositiveIntegerField(
-        null=True, blank=True,
-        help_text="Auto-stop after this duration"
+        null=True, blank=True, help_text="Auto-stop after this duration"
     )
 
     # Scenario configuration
     scenario = models.JSONField(
-        default=dict, blank=True,
-        help_text="Predefined scenario configuration"
+        default=dict, blank=True, help_text="Predefined scenario configuration"
     )
 
     # Statistics
@@ -404,9 +407,9 @@ class SimulationSession(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Simulation Session'
-        verbose_name_plural = 'Simulation Sessions'
-        ordering = ['-created_at']
+        verbose_name = "Simulation Session"
+        verbose_name_plural = "Simulation Sessions"
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.name} ({self.status})"
@@ -415,18 +418,18 @@ class SimulationSession(models.Model):
         """Start the simulation session."""
         self.status = self.Status.RUNNING
         self.started_at = timezone.now()
-        self.save(update_fields=['status', 'started_at', 'updated_at'])
+        self.save(update_fields=["status", "started_at", "updated_at"])
 
     def stop(self):
         """Stop the simulation session."""
         self.status = self.Status.STOPPED
         self.stopped_at = timezone.now()
-        self.save(update_fields=['status', 'stopped_at', 'updated_at'])
+        self.save(update_fields=["status", "stopped_at", "updated_at"])
 
     def pause(self):
         """Pause the simulation session."""
         self.status = self.Status.PAUSED
-        self.save(update_fields=['status', 'updated_at'])
+        self.save(update_fields=["status", "updated_at"])
 
 
 class SimulationEvent(models.Model):
@@ -435,48 +438,53 @@ class SimulationEvent(models.Model):
     """
 
     class EventType(models.TextChoices):
-        THRESHOLD_HIGH = 'threshold_high', 'High Threshold Exceeded'
-        THRESHOLD_LOW = 'threshold_low', 'Low Threshold Exceeded'
-        CRITICAL_HIGH = 'critical_high', 'Critical High'
-        CRITICAL_LOW = 'critical_low', 'Critical Low'
-        DEVICE_FAULT = 'device_fault', 'Device Fault'
-        DEVICE_RECOVERY = 'device_recovery', 'Device Recovery'
-        PLC_OFFLINE = 'plc_offline', 'PLC Offline'
-        PLC_ONLINE = 'plc_online', 'PLC Online'
-        RATE_OF_CHANGE = 'rate_of_change', 'Abnormal Rate of Change'
+        THRESHOLD_HIGH = "threshold_high", "High Threshold Exceeded"
+        THRESHOLD_LOW = "threshold_low", "Low Threshold Exceeded"
+        CRITICAL_HIGH = "critical_high", "Critical High"
+        CRITICAL_LOW = "critical_low", "Critical Low"
+        DEVICE_FAULT = "device_fault", "Device Fault"
+        DEVICE_RECOVERY = "device_recovery", "Device Recovery"
+        PLC_OFFLINE = "plc_offline", "PLC Offline"
+        PLC_ONLINE = "plc_online", "PLC Online"
+        RATE_OF_CHANGE = "rate_of_change", "Abnormal Rate of Change"
 
     class Severity(models.TextChoices):
-        CRITICAL = 'critical', 'Critical'
-        HIGH = 'high', 'High'
-        MEDIUM = 'medium', 'Medium'
-        LOW = 'low', 'Low'
-        INFO = 'info', 'Informational'
+        CRITICAL = "critical", "Critical"
+        HIGH = "high", "High"
+        MEDIUM = "medium", "Medium"
+        LOW = "low", "Low"
+        INFO = "info", "Informational"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     device = models.ForeignKey(
         SimulatedDevice,
         on_delete=models.CASCADE,
-        related_name='events',
-        null=True, blank=True
+        related_name="events",
+        null=True,
+        blank=True,
     )
     plc = models.ForeignKey(
         SimulatedPLC,
         on_delete=models.CASCADE,
-        related_name='events',
-        null=True, blank=True
+        related_name="events",
+        null=True,
+        blank=True,
     )
     session = models.ForeignKey(
         SimulationSession,
         on_delete=models.SET_NULL,
-        related_name='events',
-        null=True, blank=True
+        related_name="events",
+        null=True,
+        blank=True,
     )
 
     event_type = models.CharField(max_length=20, choices=EventType.choices)
     severity = models.CharField(max_length=20, choices=Severity.choices)
     message = models.TextField()
     value = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
-    threshold = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    threshold = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True
+    )
 
     acknowledged = models.BooleanField(default=False)
     acknowledged_by = models.CharField(max_length=100, blank=True)
@@ -488,13 +496,13 @@ class SimulationEvent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = 'Simulation Event'
-        verbose_name_plural = 'Simulation Events'
-        ordering = ['-created_at']
+        verbose_name = "Simulation Event"
+        verbose_name_plural = "Simulation Events"
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=['device', '-created_at']),
-            models.Index(fields=['severity', '-created_at']),
-            models.Index(fields=['acknowledged', '-created_at']),
+            models.Index(fields=["device", "-created_at"]),
+            models.Index(fields=["severity", "-created_at"]),
+            models.Index(fields=["acknowledged", "-created_at"]),
         ]
 
     def __str__(self):

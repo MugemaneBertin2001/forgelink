@@ -1,8 +1,8 @@
 """ForgeLink JWT Authentication for REST Framework"""
+
 from typing import Set
+
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth.models import AnonymousUser
 
 
 class JWTUser:
