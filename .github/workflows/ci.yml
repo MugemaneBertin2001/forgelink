@@ -1,0 +1,243 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/forgelink
+
+jobs:
+  # Django API Tests
+  django-tests:
+    name: Django Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/django-api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: forgelink
+          POSTGRES_PASSWORD: forgelink
+          POSTGRES_DB: forgelink_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-django pytest-cov
+
+      - name: Run tests
+        env:
+          DJANGO_SETTINGS_MODULE: forgelink.settings.test
+          DATABASE_URL: postgres://forgelink:forgelink@localhost:5432/forgelink_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          pytest --cov=apps --cov-report=xml --cov-report=html -v
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./services/django-api/coverage.xml
+          flags: django
+          name: django-coverage
+
+  # Spring IDP Tests
+  spring-idp-tests:
+    name: Spring IDP Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/spring-idp
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: idp
+          POSTGRES_PASSWORD: idp
+          POSTGRES_DB: idp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spring-idp-test-results
+          path: services/spring-idp/build/reports/tests/
+
+  # Spring Notification Service Tests
+  spring-notification-tests:
+    name: Spring Notification Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/spring-notification-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spring-notification-test-results
+          path: services/spring-notification-service/build/reports/tests/
+
+  # Flutter Tests
+  flutter-tests:
+    name: Flutter Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/flutter-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./services/flutter-app/coverage/lcov.info
+          flags: flutter
+          name: flutter-coverage
+
+  # Lint and Format Checks
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python linters
+        run: pip install ruff black isort
+
+      - name: Run Ruff
+        run: ruff check services/django-api/
+
+      - name: Check Black formatting
+        run: black --check services/django-api/
+
+      - name: Check import sorting
+        run: isort --check-only services/django-api/
+
+  # Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Bandit (Python security)
+        run: |
+          pip install bandit
+          bandit -r services/django-api/apps/ -f json -o bandit-results.json || true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-results
+          path: bandit-results.json

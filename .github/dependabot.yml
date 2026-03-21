@@ -1,0 +1,86 @@
+version: 2
+updates:
+  # Python dependencies (Django API)
+  - package-ecosystem: "pip"
+    directory: "/services/django-api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      django:
+        patterns:
+          - "django*"
+      celery:
+        patterns:
+          - "celery*"
+      security:
+        patterns:
+          - "cryptography"
+          - "pyjwt"
+
+  # Gradle dependencies (Spring IDP)
+  - package-ecosystem: "gradle"
+    directory: "/services/spring-idp"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "java"
+    groups:
+      spring:
+        patterns:
+          - "org.springframework*"
+
+  # Gradle dependencies (Spring Notification)
+  - package-ecosystem: "gradle"
+    directory: "/services/spring-notification-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "java"
+
+  # Flutter/Dart dependencies
+  - package-ecosystem: "pub"
+    directory: "/services/flutter-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "flutter"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/services/django-api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/services/spring-idp"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci"

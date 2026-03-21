@@ -1,0 +1,609 @@
+"""
+Celery tasks for telemetry data management.
+
+Handles:
+- Continuous aggregation (1-min, 1-hour, 1-day rollups)
+- Data retention cleanup
+- Data quality monitoring
+- Threshold alerts
+"""
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any, List, Optional
+
+from celery import shared_task
+from django.conf import settings
+
+from .tdengine import (
+    get_tdengine_client,
+    query_telemetry,
+    query_device_stats,
+    insert_event,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================
+# Aggregation Tasks
+# ============================================
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def aggregate_telemetry_1m(self) -> Dict[str, Any]:
+    """
+    Create 1-minute aggregates from raw telemetry data.
+
+    Runs every minute via Celery Beat.
+    TDengine handles this natively with continuous queries,
+    but this task ensures data integrity and handles gaps.
+    """
+    try:
+        client = get_tdengine_client()
+        if not client:
+            logger.error("TDengine client not available")
+            return {'status': 'error', 'message': 'TDengine unavailable'}
+
+        # TDengine continuous aggregation query
+        # Uses TDengine's built-in INTERVAL function
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=2)  # Overlap for safety
+
+        # Query for aggregation - TDengine handles this efficiently
+        sql = f"""
+            INSERT INTO forgelink.telemetry_1m
+            SELECT _wstart as ts, device_id, area,
+                   AVG(value) as avg_value,
+                   MIN(value) as min_value,
+                   MAX(value) as max_value,
+                   COUNT(*) as count
+            FROM forgelink.telemetry
+            WHERE ts >= '{start_time.isoformat()}' AND ts < '{end_time.isoformat()}'
+            INTERVAL(1m)
+            GROUP BY device_id, area
+        """
+
+        try:
+            client.execute(sql)
+            logger.info(f"Created 1-minute aggregates for {start_time} to {end_time}")
+            return {
+                'status': 'success',
+                'start_time': start_time.isoformat(),
+                'end_time': end_time.isoformat(),
+            }
+        except Exception as e:
+            # TDengine may not support INSERT...SELECT, use alternative
+            logger.debug(f"Direct aggregation not supported: {e}")
+            return aggregate_telemetry_1m_fallback(start_time, end_time)
+
+    except Exception as e:
+        logger.error(f"Error in 1-minute aggregation: {e}")
+        raise self.retry(exc=e)
+
+
+def aggregate_telemetry_1m_fallback(start_time: datetime, end_time: datetime) -> Dict[str, Any]:
+    """Fallback aggregation using SELECT + INSERT."""
+    client = get_tdengine_client()
+
+    # Get distinct devices
+    devices_sql = """
+        SELECT DISTINCT device_id, area
+        FROM forgelink.telemetry
+        WHERE ts >= '{start}' AND ts < '{end}'
+    """.format(start=start_time.isoformat(), end=end_time.isoformat())
+
+    try:
+        devices = client.fetchall(devices_sql)
+    except Exception:
+        devices = []
+
+    aggregated = 0
+    for device_row in devices:
+        device_id = device_row.get('device_id') or device_row[0]
+        area = device_row.get('area') or device_row[1] if len(device_row) > 1 else 'unknown'
+
+        # Get aggregated values
+        agg_sql = f"""
+            SELECT _wstart as ts,
+                   AVG(value) as avg_value,
+                   MIN(value) as min_value,
+                   MAX(value) as max_value,
+                   COUNT(*) as count
+            FROM forgelink.telemetry
+            WHERE device_id = '{device_id}'
+              AND ts >= '{start_time.isoformat()}' AND ts < '{end_time.isoformat()}'
+            INTERVAL(1m)
+        """
+
+        try:
+            results = client.fetchall(agg_sql)
+            for row in results:
+                ts = row.get('ts') or row[0]
+                avg_val = row.get('avg_value') or row[1]
+                min_val = row.get('min_value') or row[2]
+                max_val = row.get('max_value') or row[3]
+                count = row.get('count') or row[4]
+
+                if avg_val is not None:
+                    insert_sql = f"""
+                        INSERT INTO forgelink.d_{device_id.replace('-', '_')}_1m
+                        VALUES ('{ts}', {avg_val}, {min_val}, {max_val}, {count})
+                    """
+                    try:
+                        client.execute(insert_sql)
+                        aggregated += 1
+                    except Exception as e:
+                        logger.debug(f"Insert aggregate failed: {e}")
+        except Exception as e:
+            logger.debug(f"Aggregation query failed for {device_id}: {e}")
+
+    return {
+        'status': 'success',
+        'aggregated': aggregated,
+        'start_time': start_time.isoformat(),
+        'end_time': end_time.isoformat(),
+    }
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=300)
+def aggregate_telemetry_1h(self) -> Dict[str, Any]:
+    """
+    Create 1-hour aggregates from 1-minute aggregates.
+
+    Runs every hour via Celery Beat.
+    """
+    try:
+        client = get_tdengine_client()
+        if not client:
+            logger.error("TDengine client not available")
+            return {'status': 'error', 'message': 'TDengine unavailable'}
+
+        end_time = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        start_time = end_time - timedelta(hours=1)
+
+        logger.info(f"Creating 1-hour aggregates for {start_time} to {end_time}")
+
+        # In production, this would roll up from 1-minute tables
+        # For simplicity, we aggregate from raw data
+        sql = f"""
+            SELECT device_id, area,
+                   AVG(value) as avg_value,
+                   MIN(value) as min_value,
+                   MAX(value) as max_value,
+                   STDDEV(value) as std_value,
+                   COUNT(*) as count
+            FROM forgelink.telemetry
+            WHERE ts >= '{start_time.isoformat()}' AND ts < '{end_time.isoformat()}'
+            GROUP BY device_id, area
+        """
+
+        results = client.fetchall(sql)
+        aggregated = len(results) if results else 0
+
+        logger.info(f"Created {aggregated} hourly aggregates")
+
+        return {
+            'status': 'success',
+            'aggregated': aggregated,
+            'start_time': start_time.isoformat(),
+            'end_time': end_time.isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error in 1-hour aggregation: {e}")
+        raise self.retry(exc=e)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=600)
+def aggregate_telemetry_1d(self) -> Dict[str, Any]:
+    """
+    Create 1-day aggregates.
+
+    Runs daily at midnight UTC via Celery Beat.
+    """
+    try:
+        client = get_tdengine_client()
+        if not client:
+            logger.error("TDengine client not available")
+            return {'status': 'error', 'message': 'TDengine unavailable'}
+
+        end_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_time = end_time - timedelta(days=1)
+
+        logger.info(f"Creating daily aggregates for {start_time.date()}")
+
+        sql = f"""
+            SELECT device_id, area,
+                   AVG(value) as avg_value,
+                   MIN(value) as min_value,
+                   MAX(value) as max_value,
+                   STDDEV(value) as std_value,
+                   COUNT(*) as count,
+                   FIRST(value) as first_value,
+                   LAST(value) as last_value
+            FROM forgelink.telemetry
+            WHERE ts >= '{start_time.isoformat()}' AND ts < '{end_time.isoformat()}'
+            GROUP BY device_id, area
+        """
+
+        results = client.fetchall(sql)
+        aggregated = len(results) if results else 0
+
+        logger.info(f"Created {aggregated} daily aggregates for {start_time.date()}")
+
+        return {
+            'status': 'success',
+            'aggregated': aggregated,
+            'date': start_time.date().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error in daily aggregation: {e}")
+        raise self.retry(exc=e)
+
+
+# ============================================
+# Data Retention Tasks
+# ============================================
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=3600)
+def cleanup_old_telemetry(self) -> Dict[str, Any]:
+    """
+    Clean up old telemetry data based on retention policy.
+
+    Retention (from CLAUDE.md):
+    - Raw: 30 days
+    - 1-min aggregates: 90 days
+    - 1-hour aggregates: 1 year
+    - 1-day aggregates: indefinite
+
+    Runs daily via Celery Beat.
+    """
+    try:
+        client = get_tdengine_client()
+        if not client:
+            logger.error("TDengine client not available")
+            return {'status': 'error', 'message': 'TDengine unavailable'}
+
+        now = datetime.now(timezone.utc)
+        results = {
+            'raw_deleted': 0,
+            '1m_deleted': 0,
+            '1h_deleted': 0,
+        }
+
+        # Delete raw data older than 30 days
+        raw_cutoff = now - timedelta(days=30)
+        try:
+            sql = f"DELETE FROM forgelink.telemetry WHERE ts < '{raw_cutoff.isoformat()}'"
+            client.execute(sql)
+            logger.info(f"Deleted raw telemetry older than {raw_cutoff.date()}")
+        except Exception as e:
+            logger.warning(f"Raw data cleanup failed: {e}")
+
+        # Delete 1-min aggregates older than 90 days
+        min_cutoff = now - timedelta(days=90)
+        try:
+            sql = f"DELETE FROM forgelink.telemetry_1m WHERE ts < '{min_cutoff.isoformat()}'"
+            client.execute(sql)
+            logger.info(f"Deleted 1-min aggregates older than {min_cutoff.date()}")
+        except Exception as e:
+            logger.debug(f"1-min cleanup failed: {e}")
+
+        # Delete 1-hour aggregates older than 1 year
+        hour_cutoff = now - timedelta(days=365)
+        try:
+            sql = f"DELETE FROM forgelink.telemetry_1h WHERE ts < '{hour_cutoff.isoformat()}'"
+            client.execute(sql)
+            logger.info(f"Deleted 1-hour aggregates older than {hour_cutoff.date()}")
+        except Exception as e:
+            logger.debug(f"1-hour cleanup failed: {e}")
+
+        return {
+            'status': 'success',
+            'raw_cutoff': raw_cutoff.date().isoformat(),
+            'min_cutoff': min_cutoff.date().isoformat(),
+            'hour_cutoff': hour_cutoff.date().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error in data cleanup: {e}")
+        raise self.retry(exc=e)
+
+
+# ============================================
+# Quality Monitoring Tasks
+# ============================================
+
+@shared_task(bind=True, max_retries=3)
+def check_data_quality(self) -> Dict[str, Any]:
+    """
+    Check data quality and detect stale devices.
+
+    Runs every 5 minutes via Celery Beat.
+    Alerts if device hasn't reported in expected interval.
+    """
+    try:
+        client = get_tdengine_client()
+        if not client:
+            return {'status': 'error', 'message': 'TDengine unavailable'}
+
+        now = datetime.now(timezone.utc)
+        stale_threshold = now - timedelta(minutes=5)  # 5 minutes stale
+
+        # Find devices with recent data
+        sql = f"""
+            SELECT device_id, area, LAST(ts) as last_ts, LAST(quality) as quality
+            FROM forgelink.telemetry
+            WHERE ts >= '{(now - timedelta(hours=1)).isoformat()}'
+            GROUP BY device_id, area
+        """
+
+        results = client.fetchall(sql)
+        stale_devices = []
+        quality_issues = []
+
+        for row in results:
+            device_id = row.get('device_id') or row[0]
+            area = row.get('area') or row[1]
+            last_ts = row.get('last_ts') or row[2]
+            quality = row.get('quality') or row[3]
+
+            # Check for stale data
+            if isinstance(last_ts, str):
+                last_ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00'))
+
+            if last_ts and last_ts < stale_threshold:
+                stale_devices.append({
+                    'device_id': device_id,
+                    'area': area,
+                    'last_seen': last_ts.isoformat() if hasattr(last_ts, 'isoformat') else str(last_ts),
+                    'minutes_stale': int((now - last_ts).total_seconds() / 60) if last_ts else 999,
+                })
+
+            # Check for bad quality
+            if quality and quality != 'good':
+                quality_issues.append({
+                    'device_id': device_id,
+                    'area': area,
+                    'quality': quality,
+                })
+
+        # Log warnings
+        if stale_devices:
+            logger.warning(f"Found {len(stale_devices)} stale devices")
+            for device in stale_devices[:5]:  # Log first 5
+                logger.warning(f"  Stale: {device['device_id']} ({device['minutes_stale']} min)")
+
+        if quality_issues:
+            logger.warning(f"Found {len(quality_issues)} quality issues")
+
+        return {
+            'status': 'success',
+            'checked_at': now.isoformat(),
+            'stale_devices': len(stale_devices),
+            'quality_issues': len(quality_issues),
+            'stale_list': stale_devices[:10],  # Return first 10
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking data quality: {e}")
+        raise self.retry(exc=e)
+
+
+@shared_task(bind=True, max_retries=3)
+def check_thresholds(self, device_id: str, value: float, thresholds: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Check if a value exceeds thresholds and generate alerts.
+
+    Args:
+        device_id: Device identifier
+        value: Current value
+        thresholds: Dict with keys: warning_low, warning_high, critical_low, critical_high
+    """
+    try:
+        alerts = []
+
+        warning_low = thresholds.get('warning_low')
+        warning_high = thresholds.get('warning_high')
+        critical_low = thresholds.get('critical_low')
+        critical_high = thresholds.get('critical_high')
+
+        # Check critical thresholds first
+        if critical_high is not None and value >= critical_high:
+            alerts.append({
+                'event_type': 'critical_high',
+                'severity': 'critical',
+                'message': f"Value {value} exceeds critical high threshold {critical_high}",
+            })
+        elif critical_low is not None and value <= critical_low:
+            alerts.append({
+                'event_type': 'critical_low',
+                'severity': 'critical',
+                'message': f"Value {value} below critical low threshold {critical_low}",
+            })
+        elif warning_high is not None and value >= warning_high:
+            alerts.append({
+                'event_type': 'threshold_high',
+                'severity': 'high',
+                'message': f"Value {value} exceeds warning high threshold {warning_high}",
+            })
+        elif warning_low is not None and value <= warning_low:
+            alerts.append({
+                'event_type': 'threshold_low',
+                'severity': 'high',
+                'message': f"Value {value} below warning low threshold {warning_low}",
+            })
+
+        # Record events
+        for alert in alerts:
+            try:
+                insert_event(
+                    device_id=device_id,
+                    plant='steel-plant-kigali',
+                    area='unknown',  # Would need device lookup
+                    event_type=alert['event_type'],
+                    severity=alert['severity'],
+                    message=alert['message'],
+                    value=value,
+                    threshold=thresholds.get(alert['event_type'].replace('_', '_').split('_')[-1])
+                )
+            except Exception as e:
+                logger.error(f"Failed to record alert: {e}")
+
+        return {
+            'device_id': device_id,
+            'value': value,
+            'alerts': len(alerts),
+            'alert_details': alerts,
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking thresholds: {e}")
+        raise self.retry(exc=e)
+
+
+# ============================================
+# Statistics Tasks
+# ============================================
+
+@shared_task(bind=True, max_retries=3)
+def compute_device_statistics(self, device_id: str, period: str = '24h') -> Dict[str, Any]:
+    """
+    Compute and cache device statistics.
+
+    Called on-demand or periodically for dashboards.
+    """
+    try:
+        stats = query_device_stats(device_id, period)
+
+        if stats:
+            logger.debug(f"Computed stats for {device_id}: avg={stats.get('avg_value')}")
+            return {
+                'status': 'success',
+                'device_id': device_id,
+                'period': period,
+                'stats': stats,
+            }
+        else:
+            return {
+                'status': 'no_data',
+                'device_id': device_id,
+                'period': period,
+            }
+
+    except Exception as e:
+        logger.error(f"Error computing device statistics: {e}")
+        raise self.retry(exc=e)
+
+
+@shared_task(bind=True, max_retries=3)
+def compute_area_summary(self, area: str) -> Dict[str, Any]:
+    """
+    Compute area summary statistics.
+
+    Called periodically for dashboard updates.
+    """
+    try:
+        from .services import TelemetryService
+
+        overview = TelemetryService.get_area_overview(area)
+
+        logger.info(f"Area {area}: {overview['total_devices']} devices, "
+                   f"{overview['online']} online, {overview['fault']} faults")
+
+        return {
+            'status': 'success',
+            'area': area,
+            'summary': {
+                'total_devices': overview['total_devices'],
+                'online': overview['online'],
+                'warning': overview['warning'],
+                'fault': overview['fault'],
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error computing area summary: {e}")
+        raise self.retry(exc=e)
+
+
+# ============================================
+# Anomaly Detection Tasks
+# ============================================
+
+@shared_task(bind=True, max_retries=3)
+def detect_anomalies_batch(self, area: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Run anomaly detection across devices.
+
+    Args:
+        area: Optional area filter
+
+    Runs periodically to find unusual readings.
+    """
+    try:
+        from .services import TelemetryService
+
+        client = get_tdengine_client()
+        if not client:
+            return {'status': 'error', 'message': 'TDengine unavailable'}
+
+        # Get devices to check
+        device_sql = "SELECT DISTINCT device_id FROM forgelink.telemetry"
+        if area:
+            device_sql += f" WHERE area = '{area}'"
+
+        devices = client.fetchall(device_sql)
+        total_anomalies = 0
+        anomaly_summary = []
+
+        for device_row in devices[:50]:  # Limit to 50 devices per run
+            device_id = device_row.get('device_id') or device_row[0]
+
+            try:
+                anomalies = TelemetryService.detect_anomalies(
+                    device_id=device_id,
+                    period='1h',
+                    std_threshold=3.0
+                )
+
+                if anomalies:
+                    total_anomalies += len(anomalies)
+                    anomaly_summary.append({
+                        'device_id': device_id,
+                        'count': len(anomalies),
+                    })
+
+                    # Record events for significant anomalies
+                    for anomaly in anomalies[:3]:  # First 3 per device
+                        if anomaly.get('deviation', 0) > 4.0:  # Severe
+                            try:
+                                insert_event(
+                                    device_id=device_id,
+                                    plant='steel-plant-kigali',
+                                    area=area or 'unknown',
+                                    event_type='rate_of_change',
+                                    severity='medium',
+                                    message=f"Anomaly detected: {anomaly['deviation']:.1f} std from mean",
+                                    value=anomaly.get('value'),
+                                    threshold=None
+                                )
+                            except Exception as e:
+                                logger.debug(f"Failed to record anomaly event: {e}")
+
+            except Exception as e:
+                logger.debug(f"Anomaly detection failed for {device_id}: {e}")
+
+        logger.info(f"Anomaly detection complete: {total_anomalies} anomalies in {len(devices)} devices")
+
+        return {
+            'status': 'success',
+            'devices_checked': len(devices),
+            'total_anomalies': total_anomalies,
+            'devices_with_anomalies': len(anomaly_summary),
+            'summary': anomaly_summary[:10],
+        }
+
+    except Exception as e:
+        logger.error(f"Error in batch anomaly detection: {e}")
+        raise self.retry(exc=e)

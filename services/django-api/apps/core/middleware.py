@@ -39,8 +39,17 @@ class JWTAuthenticationMiddleware:
         try:
             payload = self._validate_token(token)
             request.jwt_payload = payload
-            request.user_roles = payload.get("roles", [])
+            request.user_id = payload.get("sub")
+            request.user_email = payload.get("email")
             request.plant_id = payload.get("plant_id")
+
+            # Get role_code from JWT (IDP assigns role to user)
+            role_code = payload.get("role")  # Single role code from IDP
+            request.role_code = role_code
+
+            # Resolve role_code → permissions from Django
+            request.user_permissions = self._resolve_permissions(role_code)
+
         except jwt.ExpiredSignatureError:
             return JsonResponse({"error": "Token expired"}, status=401)
         except jwt.InvalidTokenError as e:
@@ -48,6 +57,18 @@ class JWTAuthenticationMiddleware:
             return JsonResponse({"error": "Invalid token"}, status=401)
 
         return self.get_response(request)
+
+    def _resolve_permissions(self, role_code: Optional[str]) -> set:
+        """Resolve role_code to set of permission codes."""
+        if not role_code:
+            return set()
+
+        try:
+            from apps.core.models import Role
+            return Role.get_permissions_for_role(role_code)
+        except Exception as e:
+            logger.warning(f"Failed to resolve permissions for role {role_code}: {e}")
+            return set()
 
     def _is_public_path(self, path: str) -> bool:
         """Check if path is public (no auth required)."""

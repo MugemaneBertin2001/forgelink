@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgelink-api
+  labels:
+    app.kubernetes.io/name: forgelink-api
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app.kubernetes.io/name: forgelink-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgelink-idp
+  labels:
+    app.kubernetes.io/name: forgelink-idp
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app.kubernetes.io/name: forgelink-idp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgelink-notification
+  labels:
+    app.kubernetes.io/name: forgelink-notification
+spec:
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+  selector:
+    app.kubernetes.io/name: forgelink-notification

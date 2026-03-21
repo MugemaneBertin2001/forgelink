@@ -112,6 +112,7 @@ INSTALLED_APPS = [
     "apps.ai",
     "apps.audit",
     "apps.api",
+    "apps.simulator",
 ]
 
 MIDDLEWARE = [
@@ -260,6 +261,7 @@ KAFKA = {
     "BOOTSTRAP_SERVERS": env.kafka_bootstrap_servers,
     "CONSUMER_GROUP_ID": env.kafka_consumer_group_id,
 }
+KAFKA_BOOTSTRAP_SERVERS = env.kafka_bootstrap_servers
 
 # RabbitMQ
 RABBITMQ = {
@@ -326,4 +328,12 @@ UNFOLD = {
     "SITE_SYMBOL": "factory",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": True,
+}
+
+# Socket.IO
+SOCKETIO = {
+    "CORS_ALLOWED_ORIGINS": CORS_ALLOWED_ORIGINS + ["*"],  # Flutter app
+    "ASYNC_MODE": "asgi",
+    "PING_TIMEOUT": 60,
+    "PING_INTERVAL": 25,
 }

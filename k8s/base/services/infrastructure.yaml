@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  labels:
+    app.kubernetes.io/name: postgresql
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgresql
+  selector:
+    app.kubernetes.io/name: postgresql
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app.kubernetes.io/name: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  labels:
+    app.kubernetes.io/name: kafka
+spec:
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: kafka
+  selector:
+    app.kubernetes.io/name: kafka
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  labels:
+    app.kubernetes.io/name: kafka
+spec:
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: kafka
+    - port: 9093
+      targetPort: 9093
+      name: kafka-internal
+  selector:
+    app.kubernetes.io/name: kafka
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tdengine
+  labels:
+    app.kubernetes.io/name: tdengine
+spec:
+  ports:
+    - port: 6030
+      targetPort: 6030
+      name: taosd
+    - port: 6041
+      targetPort: 6041
+      name: rest
+    - port: 6043
+      targetPort: 6043
+      name: adapter
+  selector:
+    app.kubernetes.io/name: tdengine
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  labels:
+    app.kubernetes.io/name: emqx
+spec:
+  ports:
+    - port: 1883
+      targetPort: 1883
+      name: mqtt
+    - port: 8883
+      targetPort: 8883
+      name: mqtts
+    - port: 8083
+      targetPort: 8083
+      name: ws
+    - port: 18083
+      targetPort: 18083
+      name: dashboard
+  selector:
+    app.kubernetes.io/name: emqx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx-headless
+  labels:
+    app.kubernetes.io/name: emqx
+spec:
+  ports:
+    - port: 1883
+      targetPort: 1883
+      name: mqtt
+    - port: 4370
+      targetPort: 4370
+      name: cluster
+  selector:
+    app.kubernetes.io/name: emqx
+  clusterIP: None

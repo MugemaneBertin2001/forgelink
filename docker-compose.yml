@@ -311,6 +311,8 @@ services:
       dockerfile: Dockerfile
     container_name: forgelink-mqtt-bridge
     hostname: forgelink-mqtt-bridge
+    ports:
+      - "8090:8000"  # Metrics
     env_file:
       - .env
     networks:
@@ -321,6 +323,78 @@ services:
       kafka:
         condition: service_healthy
     restart: unless-stopped
+
+  # ==================== SIMULATION LAYER ====================
+
+  # OPC-UA Simulator - Simulates steel plant PLCs
+  opcua-simulator:
+    build:
+      context: ./services/opcua-simulator
+      dockerfile: Dockerfile
+    container_name: forgelink-opcua-simulator
+    hostname: opcua-simulator
+    ports:
+      - "4840:4840"   # OPC-UA endpoint
+      - "8091:8081"   # Health check
+      - "9091:9091"   # Metrics
+    environment:
+      OPCUA_ENDPOINT: opc.tcp://0.0.0.0:4840/forgelink/
+      OPCUA_REDIS_URL: redis://redis:6379/2
+      OPCUA_DJANGO_API_URL: http://forgelink-api:8000
+      OPCUA_LOG_LEVEL: INFO
+    networks:
+      - forgelink-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - simulation
+    restart: unless-stopped
+
+  # Edge Gateway - OPC-UA to MQTT bridge
+  edge-gateway:
+    build:
+      context: ./services/edge-gateway
+      dockerfile: Dockerfile
+    container_name: forgelink-edge-gateway
+    hostname: edge-gateway
+    ports:
+      - "8092:8082"   # Health check
+      - "9092:9092"   # Metrics
+    environment:
+      EDGE_OPCUA_ENDPOINT: opc.tcp://opcua-simulator:4840/forgelink/
+      EDGE_MQTT_HOST: emqx
+      EDGE_MQTT_PORT: 1883
+      EDGE_MQTT_USERNAME: bridge
+      EDGE_MQTT_PASSWORD: ${EMQX_MQTT_PASSWORD:-bridge_dev_password}
+      EDGE_LOG_LEVEL: INFO
+    networks:
+      - forgelink-network
+    depends_on:
+      emqx:
+        condition: service_healthy
+      opcua-simulator:
+        condition: service_started
+    profiles:
+      - simulation
+    restart: unless-stopped
+
+  # Kafka Topic Initializer - Creates required topics
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: forgelink-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init-kafka-topics.sh:/init-kafka-topics.sh:ro
+    command: ["bash", "/init-kafka-topics.sh"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+    networks:
+      - forgelink-network
+    profiles:
+      - init
 
   # ==================== OBSERVABILITY ====================
 

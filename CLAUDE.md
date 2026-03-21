@@ -85,8 +85,9 @@ Scrap Yard → Melt Shop → Continuous Casting → Rolling Mill → Finishing �
 | Message Streaming | Kafka 7.x | High-throughput telemetry |
 | Task Queue | RabbitMQ 3.13 | Commands, alerts |
 | MQTT Broker | EMQX 5.x | MQTT 5.0, mTLS, ACL |
-| API Gateway | Django 5.1 | Integration hub, GraphQL |
-| Domain Services | Spring Boot 3.3 | Headless microservices |
+| API Gateway | Django 5.1 | Integration hub, GraphQL, owns all data |
+| Notifications | Spring Boot 3.3 | Slack webhook service |
+| Real-time | Socket.IO | In-app notifications to Flutter |
 | Mobile | Flutter 3.19+ | Cross-platform |
 | Identity | Spring IDP | RS256 JWT, JWKS |
 | Secrets | HashiCorp Vault | Self-hosted |
@@ -95,20 +96,49 @@ Scrap Yard → Melt Shop → Continuous Casting → Rolling Mill → Finishing �
 
 ---
 
+## Simplified Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Django API (Source of Truth)                       │
+│  - Assets (ISA-95 hierarchy)                                                │
+│  - Alerts (rules, active, history)                                          │
+│  - Telemetry ingestion                                                      │
+│  - REST + GraphQL APIs                                                      │
+│  - Socket.IO for real-time                                                  │
+└─────────────┬───────────────────────────────────┬───────────────────────────┘
+              │ Kafka: alerts.notifications       │ Socket.IO
+              ▼                                   ▼
+┌─────────────────────────┐          ┌─────────────────────────┐
+│ Spring Notification Svc │          │      Flutter App        │
+│  - Slack webhooks       │          │  - Real-time alerts     │
+│  - Simple HTTP POST     │          │  - Dashboard            │
+└─────────────────────────┘          └─────────────────────────┘
+              │
+              ▼
+         Slack Channel
+```
+
+**Data Ownership:**
+- Django owns ALL business data (assets, alerts, telemetry)
+- Spring IDP owns only authentication data
+- Spring Notification Service is stateless (consumes Kafka, posts to Slack)
+
+---
+
 ## Naming Conventions
 
 ### Services
-- `forgelink-api` — Django integration hub
-- `forgelink-idp` — Identity provider
-- `forgelink-asset-service` — Asset domain service
-- `forgelink-alert-service` — Alert domain service
+- `forgelink-api` — Django integration hub (owns all business data)
+- `forgelink-idp` — Spring Identity provider (JWT/JWKS)
+- `forgelink-notification-service` — Spring Slack notifications
 - `forgelink-mqtt-bridge` — MQTT to Kafka bridge
+- `opcua-simulator` — OPC-UA simulation server (simulates PLCs)
+- `edge-gateway` — OPC-UA to MQTT bridge
 
 ### Database Schemas (PostgreSQL)
-- `forgelink` — Django relational data
+- `forgelink` — Django relational data (assets, alerts, simulator)
 - `idp` — Spring IDP users, tokens
-- `assets` — Spring Asset Service
-- `alerts` — Spring Alert Service
 
 ### Redis Logical DBs
 - DB0 — Django sessions + rate limiting
@@ -122,7 +152,7 @@ Scrap Yard → Melt Shop → Continuous Casting → Rolling Mill → Finishing �
 - `telemetry.finishing` — Finishing area telemetry
 - `events.all` — All device events
 - `status.all` — Device status updates
-- `assets.changes` — Asset mutations
+- `alerts.notifications` — Alert events for Slack (Django → Spring)
 - `dlq.unparseable` — Dead letter queue
 
 ### UNS Topic Hierarchy (ISA-95)
@@ -187,8 +217,7 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 - [x] docker-compose.override.yml
 - [x] Django API scaffold (6 apps)
 - [x] Spring IDP scaffold
-- [x] Spring Asset Service scaffold
-- [x] Spring Alert Service scaffold
+- [x] Spring Notification Service scaffold
 - [x] MQTT Bridge scaffold
 - [x] K8s base structure
 - [x] Docs structure
@@ -208,13 +237,105 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 - [x] SPIFFE/SPIRE K8s manifests
 - [x] IDP unit tests
 
-### Phase 3 — UNS/MQTT Layer (pending)
-### Phase 4 — Django API (pending)
-### Phase 5 — Spring Boot Microservices (pending)
-### Phase 6 — Flutter Mobile App (pending)
-### Phase 7 — Kubernetes Deployment (pending)
-### Phase 8 — CI/CD (pending)
-### Phase 9 — Slack Bot (pending)
+### Phase 3 — UNS/MQTT Layer ✅ COMPLETE
+- [x] EMQX configuration (emqx.conf)
+- [x] EMQX ACL rules (area-based device permissions)
+- [x] EMQX user initialization script
+- [x] UNS topic hierarchy documentation
+- [x] TDengine schema documentation
+- [x] Django Simulator app (models, admin, API)
+- [x] Device profiles (temperature, pressure, vibration, etc.)
+- [x] Simulated PLCs and devices (~68 devices)
+- [x] Simulation sessions management
+- [x] Celery tasks for value updates
+- [x] OPC-UA simulation server
+- [x] Edge Gateway (OPC-UA → MQTT)
+- [x] Kafka topic initialization script
+- [x] Django Unfold admin integration
+
+### Phase 4 — Django API ✅ COMPLETE
+- [x] TDengine client and connection manager
+- [x] Telemetry service layer (queries, inserts, aggregations)
+- [x] Telemetry REST API (device history, latest, stats, anomalies)
+- [x] GraphQL schema with Graphene (TelemetryQuery)
+- [x] Celery tasks for TDengine aggregation (1m, 1h, 1d rollups)
+- [x] Data retention cleanup tasks
+- [x] Data quality monitoring tasks
+- [x] Anomaly detection tasks
+- [x] Asset models (Plant, Area, Line, Cell, Device, DeviceType)
+- [x] Asset REST API with full CRUD
+- [x] Asset Django Unfold admin
+- [x] Kafka consumer for telemetry ingestion
+- [x] Kafka consumer management command
+
+### Phase 5 — Notifications & Real-time ✅ COMPLETE
+- [x] Simplified architecture (Django owns all data)
+- [x] Removed Spring Asset Service (duplicate)
+- [x] Spring Notification Service (Slack webhooks)
+- [x] Kafka consumer for alerts.notifications
+- [x] Simple HTTP POST to Slack webhook (no SDK)
+- [x] Alert models in Django (AlertRule, Alert, AlertHistory)
+- [x] Alert service with threshold evaluation
+- [x] Kafka producer for alert notifications
+- [x] Socket.IO integration (python-socketio)
+- [x] AlertNamespace for real-time notifications
+- [x] Subscribe by area or all alerts
+- [x] Broadcast new alerts, acknowledgements, resolutions
+- [x] Permission-based RBAC (not role-based)
+- [x] Permission and Role models in Django
+- [x] Django Unfold admin for custom roles
+- [x] JWT middleware resolves role_code → permissions
+- [x] Permission classes for REST API
+- [x] Permission decorators for function views
+- [x] JWT authentication for Socket.IO
+- [x] Area-based access control
+- [x] seed_permissions management command
+
+### Phase 6 — Flutter Mobile App ✅ COMPLETE
+- [x] Project setup with Riverpod, Go Router, Dio
+- [x] JWT authentication with secure storage
+- [x] API client with auth interceptor and token refresh
+- [x] Socket.IO integration for real-time alerts
+- [x] Industrial theme (steel blue + forge orange)
+- [x] Login screen with validation
+- [x] Dashboard (welcome, alert summary, quick stats, area status)
+- [x] Alerts screen (tabs: active/acknowledged/history, filters, actions)
+- [x] Assets screen (ISA-95 hierarchy browser)
+- [x] Telemetry screen (device selector, chart, statistics)
+- [x] Settings screen (profile, permissions, connection status, logout)
+- [x] Permission-based UI (hide features user can't access)
+- [x] Real-time connection status indicator
+- [x] Bottom navigation with role-based tabs
+
+### Phase 7 — Kubernetes Deployment ✅ COMPLETE
+- [x] Namespace and base Kustomization structure
+- [x] ConfigMaps (forgelink-config, emqx-config)
+- [x] Secrets templates (forgelink, idp, notification, postgresql, emqx)
+- [x] PostgreSQL StatefulSet with init scripts
+- [x] Redis Deployment
+- [x] Kafka StatefulSet (KRaft mode, no Zookeeper)
+- [x] TDengine StatefulSet with persistent volumes
+- [x] EMQX StatefulSet with cluster discovery
+- [x] ForgeLink API Deployment (with Celery worker, beat, Kafka consumer)
+- [x] ForgeLink IDP Deployment
+- [x] ForgeLink Notification Service Deployment
+- [x] Services for all components
+- [x] Ingress with TLS and WebSocket support
+- [x] HPA for API, IDP, Celery workers, Kafka consumers
+- [x] Environment overlays (dev, staging, production)
+- [x] Kustomize patches for replica/resource scaling
+
+### Phase 8 — CI/CD ✅ COMPLETE
+- [x] CI workflow (Django tests, Spring tests, Flutter tests, lint)
+- [x] Build workflow (Docker images for API, IDP, Notification)
+- [x] Deploy workflow (Kustomize-based K8s deployment)
+- [x] Release workflow (changelog, GitHub releases, APK artifacts)
+- [x] Security scanning (Trivy, Bandit)
+- [x] Dependabot configuration (Python, Gradle, Flutter, Docker, Actions)
+- [x] Git-cliff changelog configuration
+- [x] K8s manifest validation (kubeval)
+- [x] Automatic rollback on deployment failure
+- [x] Smoke tests post-deployment
 
 ---
 
@@ -228,14 +349,68 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 | GET | `/auth/jwks` | Public key (JWKS format) |
 | GET | `/auth/validate` | Token introspection |
 
-## RBAC Roles
+## Permission-Based RBAC
+
+### Architecture
+```
+IDP (Spring)                    Django
+┌─────────────────┐            ┌─────────────────────────┐
+│ Users           │            │ Permissions (atomic)    │
+│ - email         │            │ - alerts.view           │
+│ - password      │            │ - alerts.acknowledge    │
+│ - role_code ────┼───JWT───►  │ - assets.create         │
+│   (string)      │            │ - telemetry.export      │
+└─────────────────┘            │ - ...                   │
+                               ├─────────────────────────┤
+                               │ Roles (groups)          │
+                               │ - FACTORY_ADMIN → all   │
+                               │ - PLANT_OPERATOR → [...] │
+                               │ - Custom roles...       │
+                               └─────────────────────────┘
+```
+
+- **IDP stores**: Users + assigned role_code (just a string)
+- **Django stores**: Permissions + Roles (role_code → permissions)
+- **Admin can**: Create custom roles via Django admin
+
+### System Permissions
+
+| Module | Permission | Description |
+|--------|------------|-------------|
+| **Assets** | `assets.view` | View asset hierarchy |
+| | `assets.create` | Create assets |
+| | `assets.update` | Update assets |
+| | `assets.delete` | Delete assets |
+| | `assets.manage_maintenance` | Maintenance records |
+| **Alerts** | `alerts.view` | View alerts |
+| | `alerts.acknowledge` | Acknowledge alerts |
+| | `alerts.resolve` | Resolve alerts |
+| | `alerts.create_rule` | Create alert rules |
+| | `alerts.update_rule` | Update alert rules |
+| | `alerts.delete_rule` | Delete alert rules |
+| **Telemetry** | `telemetry.view` | View telemetry |
+| | `telemetry.view_raw` | View raw data |
+| | `telemetry.export` | Export data |
+| **Simulator** | `simulator.view` | View simulation |
+| | `simulator.control` | Control simulation |
+| | `simulator.inject_faults` | Inject faults |
+| **Admin** | `admin.manage_users` | Manage users |
+| | `admin.manage_roles` | Manage roles |
+| | `admin.view_audit` | View audit logs |
+
+### Default Roles
 
 | Role | Permissions |
 |------|-------------|
-| `FACTORY_ADMIN` | Full access |
-| `PLANT_OPERATOR` | Read all, write alerts/commands |
-| `TECHNICIAN` | Read own area, acknowledge alerts |
-| `VIEWER` | Read-only |
+| `FACTORY_ADMIN` | All permissions (superuser) |
+| `PLANT_OPERATOR` | assets.view, alerts.*, telemetry.view, simulator.view |
+| `TECHNICIAN` | assets.view, alerts.view/acknowledge, telemetry.view |
+| `VIEWER` | *.view only (read-only) |
+
+### Seed Permissions
+```bash
+python manage.py seed_permissions
+```
 
 ## Demo Users (seeded)
 
@@ -245,6 +420,60 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 | operator@forgelink.local | Admin@ForgeLink2026! | PLANT_OPERATOR |
 | tech@forgelink.local | Admin@ForgeLink2026! | TECHNICIAN |
 | viewer@forgelink.local | Admin@ForgeLink2026! | VIEWER |
+
+---
+
+## Simulation Stack
+
+### Architecture
+```
+Django Simulator App (Control Plane)
+       │
+       │ Celery tasks publish to Redis
+       ▼
+┌─────────────────────────────────────┐
+│     OPC-UA Simulation Server        │
+│  (Simulates steel plant PLCs)       │
+│  - Address space: ISA-95 hierarchy  │
+│  - ~68 device nodes                 │
+│  - Subscribes to Redis for updates  │
+└─────────────────────────────────────┘
+       │ OPC-UA Subscription
+       ▼
+┌─────────────────────────────────────┐
+│          Edge Gateway               │
+│  - Connects to OPC-UA server        │
+│  - Subscribes to value changes      │
+│  - Translates to UNS MQTT topics    │
+│  - Publishes to EMQX                │
+└─────────────────────────────────────┘
+       │ MQTT Publish
+       ▼
+┌─────────────────────────────────────┐
+│            EMQX Broker              │
+└─────────────────────────────────────┘
+       │
+       ▼
+    MQTT Bridge → Kafka → TDengine
+```
+
+### Simulation Controls
+- **Django Admin**: Full device/PLC management with Unfold UI
+- **REST API**: For Flutter app integration
+- **Celery Beat**: Scheduled value updates
+- **Fault Injection**: Stuck, drift, noise, spike, dead sensor faults
+
+### Running Simulation
+```bash
+# Start simulation stack
+docker compose --profile simulation up
+
+# Seed devices
+docker compose exec forgelink-api python manage.py seed_simulator
+
+# Initialize Kafka topics
+docker compose --profile init run kafka-init
+```
 
 ---
 
@@ -267,4 +496,169 @@ forgelink/steel-plant-kigali/rolling-mill/finishing/stand-6/roll-force-001/telem
 
 ---
 
-*Last updated: 2026-03-20 | Phase 2 complete*
+## Django API Endpoints
+
+### Telemetry API (`/api/telemetry/`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/data/device/{device_id}/history/` | Device historical data |
+| GET | `/data/device/{device_id}/latest/` | Device latest value |
+| GET | `/data/device/{device_id}/stats/` | Device statistics |
+| GET | `/data/device/{device_id}/anomalies/` | Detect anomalies |
+| GET | `/data/latest/` | Latest values for multiple devices |
+| POST | `/data/record/` | Record telemetry batch |
+| POST | `/data/compare/` | Compare multiple devices |
+| GET | `/areas/{area}/overview/` | Area device overview |
+| GET | `/areas/{area}/latest/` | Area latest values |
+| GET | `/dashboard/` | Plant-wide dashboard |
+| POST | `/events/` | Record telemetry event |
+| POST | `/schema/init/` | Initialize TDengine schema |
+
+### Assets API (`/api/assets/`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/plants/` | List/create plants |
+| GET/PUT/DELETE | `/plants/{code}/` | Plant CRUD |
+| GET | `/plants/{code}/hierarchy/` | Full plant hierarchy |
+| GET | `/plants/{code}/devices/` | All devices in plant |
+| GET/POST | `/areas/` | List/create areas |
+| GET | `/areas/{id}/devices/` | Devices in area |
+| GET | `/areas/{id}/status_summary/` | Area status summary |
+| GET/POST | `/lines/` | List/create lines |
+| GET/POST | `/cells/` | List/create cells |
+| GET/POST | `/device-types/` | List/create device types |
+| GET/POST | `/devices/` | List/create devices |
+| GET/PUT/DELETE | `/devices/{device_id}/` | Device CRUD |
+| PATCH | `/devices/{device_id}/update_status/` | Update device status |
+| PATCH | `/devices/{device_id}/update_thresholds/` | Update thresholds |
+| GET/POST | `/devices/{device_id}/maintenance/` | Maintenance records |
+| GET | `/devices/by_area/` | Devices by area |
+| POST | `/devices/search/` | Advanced device search |
+| GET | `/devices/status_summary/` | Overall status summary |
+| GET/POST | `/maintenance/` | Maintenance records |
+| GET | `/dashboard/` | Asset dashboard |
+
+### Alerts API (`/api/alerts/`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/rules/` | List/create alert rules |
+| GET/PUT/DELETE | `/rules/{id}/` | Alert rule CRUD |
+| POST | `/rules/{id}/activate/` | Activate rule |
+| POST | `/rules/{id}/deactivate/` | Deactivate rule |
+| GET/POST | `/alerts/` | List/create alerts |
+| GET | `/alerts/active/` | Get active alerts |
+| POST | `/alerts/{id}/acknowledge/` | Acknowledge alert |
+| POST | `/alerts/{id}/resolve/` | Resolve alert |
+| POST | `/alerts/acknowledge_bulk/` | Bulk acknowledge |
+| POST | `/alerts/resolve_bulk/` | Bulk resolve |
+| GET | `/history/` | Alert history (read-only) |
+| GET | `/stats/` | Alert statistics |
+
+### Simulator API (`/api/simulator/`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/profiles/` | Device profiles |
+| GET/POST | `/plcs/` | Simulated PLCs |
+| POST | `/plcs/{id}/start/` | Start PLC |
+| POST | `/plcs/{id}/stop/` | Stop PLC |
+| GET/POST | `/devices/` | Simulated devices |
+| POST | `/devices/{id}/inject_fault/` | Inject fault |
+| POST | `/devices/{id}/clear_fault/` | Clear fault |
+| GET/POST | `/sessions/` | Simulation sessions |
+| POST | `/sessions/{id}/start/` | Start session |
+| POST | `/sessions/{id}/stop/` | Stop session |
+| GET | `/events/` | Simulation events |
+| GET | `/dashboard/overview/` | Simulator dashboard |
+
+### GraphQL (`/graphql/`)
+
+Queries available:
+- `deviceHistory` — Historical telemetry
+- `deviceLatest` — Latest device value
+- `deviceStatistics` — Device stats
+- `deviceAnomalies` — Anomaly detection
+- `latestValues` — Multiple device latest
+- `compareDevices` — Device comparison
+- `areaOverview` — Area overview
+- `plantDashboard` — Plant dashboard
+
+---
+
+## Kafka Consumers
+
+```bash
+# Run telemetry consumer
+python manage.py consume_telemetry
+
+# Run event consumer
+python manage.py consume_telemetry --type events
+
+# Run both
+python manage.py consume_telemetry --type both
+
+# Custom options
+python manage.py consume_telemetry --batch-size 1000 --batch-timeout 2000
+```
+
+---
+
+## Socket.IO Real-time (Django)
+
+### Connection
+```javascript
+// Flutter/Web client connects to:
+const socket = io('http://localhost:8000', {
+  path: '/socket.io',
+  transports: ['websocket']
+});
+
+// Join alerts namespace
+const alertsSocket = io('http://localhost:8000/alerts');
+```
+
+### Events (Client → Server)
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `subscribe:area` | `{area: 'melt-shop'}` | Subscribe to area alerts |
+| `subscribe:all` | - | Subscribe to all alerts |
+| `unsubscribe` | `{area: 'melt-shop'}` or `{all: true}` | Unsubscribe |
+| `acknowledge` | `{alert_id: 'uuid', user: 'username'}` | Acknowledge via WS |
+
+### Events (Server → Client)
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `alert:new` | Alert data | New alert triggered |
+| `alert:acknowledged` | `{alert_id, acknowledged_by, acknowledged_at}` | Alert acknowledged |
+| `alert:resolved` | `{alert_id, resolved_by, resolved_at}` | Alert resolved |
+| `alert:stats` | Stats object | Statistics update |
+| `subscribed` | `{area: '...'}` or `{all: true}` | Subscription confirmed |
+
+---
+
+## Slack Webhook (Spring Notification Service)
+
+The notification service consumes `alerts.notifications` from Kafka and posts to Slack:
+
+```bash
+# Webhook URL format
+https://hooks.slack.com/services/T.../B.../...
+
+# Environment variable
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+
+Alert payload posted to Slack includes:
+- Severity emoji (rotating_light, warning, etc.)
+- Device ID and name
+- Plant/Area location
+- Value vs threshold
+- Timestamp (Africa/Kigali timezone)
+- Alert ID for tracking
+
+---
+
+*Last updated: 2026-03-21 | All phases complete*

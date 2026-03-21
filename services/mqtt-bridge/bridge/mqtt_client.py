@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 import paho.mqtt.client as mqtt
@@ -9,6 +10,7 @@ from confluent_kafka import Producer
 from prometheus_client import Counter, Histogram, start_http_server
 
 from bridge.config import settings
+from bridge.health import health_status, start_health_server
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,9 @@ class MQTTBridge:
 
     def start(self):
         """Start the bridge."""
+        # Start health server
+        start_health_server(settings.health_port)
+
         # Start metrics server
         start_http_server(settings.metrics_port)
         logger.info(f"Metrics server started on port {settings.metrics_port}")

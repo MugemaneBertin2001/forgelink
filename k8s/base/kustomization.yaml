@@ -4,5 +4,38 @@ kind: Kustomization
 namespace: forgelink
 
 resources:
+  # Namespace
   - namespace.yaml
+
+  # Network Policies
   - network-policies/default-deny.yaml
+
+  # ConfigMaps
+  - configmaps/app-config.yaml
+
+  # Secrets (use sealed-secrets or external-secrets in production)
+  - secrets/secrets.yaml
+
+  # Infrastructure
+  - deployments/postgresql.yaml
+  - deployments/redis.yaml
+  - deployments/kafka.yaml
+  - deployments/tdengine.yaml
+  - deployments/emqx.yaml
+  - services/infrastructure.yaml
+
+  # Applications
+  - deployments/forgelink-api.yaml
+  - deployments/forgelink-idp.yaml
+  - deployments/forgelink-notification.yaml
+  - services/applications.yaml
+
+  # Ingress
+  - ingress/ingress.yaml
+
+  # HPA
+  - hpa/hpa.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: forgelink-platform
+  app.kubernetes.io/managed-by: kustomize

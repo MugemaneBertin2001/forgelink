@@ -1,0 +1,203 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgelink-api
+  labels:
+    app.kubernetes.io/name: forgelink-api
+    app.kubernetes.io/component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgelink-api
+    spec:
+      initContainers:
+        - name: wait-for-postgresql
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgresql 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+        - name: migrate
+          image: forgelink-api:latest
+          command:
+            - python
+            - manage.py
+            - migrate
+            - --noinput
+          envFrom:
+            - configMapRef:
+                name: forgelink-config
+            - secretRef:
+                name: forgelink-secrets
+      containers:
+        - name: api
+          image: forgelink-api:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: forgelink-config
+            - secretRef:
+                name: forgelink-secrets
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "forgelink.settings.production"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgelink-celery-worker
+  labels:
+    app.kubernetes.io/name: forgelink-celery-worker
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-celery-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgelink-celery-worker
+    spec:
+      containers:
+        - name: worker
+          image: forgelink-api:latest
+          command:
+            - celery
+            - -A
+            - forgelink
+            - worker
+            - -l
+            - INFO
+            - --concurrency=4
+          envFrom:
+            - configMapRef:
+                name: forgelink-config
+            - secretRef:
+                name: forgelink-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - forgelink
+                - inspect
+                - ping
+            initialDelaySeconds: 60
+            periodSeconds: 30
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgelink-celery-beat
+  labels:
+    app.kubernetes.io/name: forgelink-celery-beat
+    app.kubernetes.io/component: scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgelink-celery-beat
+    spec:
+      containers:
+        - name: beat
+          image: forgelink-api:latest
+          command:
+            - celery
+            - -A
+            - forgelink
+            - beat
+            - -l
+            - INFO
+          envFrom:
+            - configMapRef:
+                name: forgelink-config
+            - secretRef:
+                name: forgelink-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgelink-kafka-consumer
+  labels:
+    app.kubernetes.io/name: forgelink-kafka-consumer
+    app.kubernetes.io/component: consumer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-kafka-consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgelink-kafka-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: forgelink-api:latest
+          command:
+            - python
+            - manage.py
+            - consume_telemetry
+            - --type
+            - both
+          envFrom:
+            - configMapRef:
+                name: forgelink-config
+            - secretRef:
+                name: forgelink-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

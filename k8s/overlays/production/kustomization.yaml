@@ -8,3 +8,59 @@ resources:
 
 commonLabels:
   environment: production
+
+# Production resource adjustments
+patches:
+  # Increase PostgreSQL resources
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "4Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2000m"
+    target:
+      kind: StatefulSet
+      name: postgresql
+  # Increase Kafka resources
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "4Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2000m"
+    target:
+      kind: StatefulSet
+      name: kafka
+  # Increase TDengine storage
+  - patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: "100Gi"
+    target:
+      kind: StatefulSet
+      name: tdengine
+
+# Use versioned production images
+images:
+  - name: forgelink-api
+    newName: ghcr.io/forgelink/forgelink-api
+    newTag: v1.0.0
+  - name: forgelink-idp
+    newName: ghcr.io/forgelink/forgelink-idp
+    newTag: v1.0.0
+  - name: forgelink-notification
+    newName: ghcr.io/forgelink/forgelink-notification
+    newTag: v1.0.0
+
+# Production replicas
+replicas:
+  - name: forgelink-api
+    count: 3
+  - name: forgelink-idp
+    count: 2
+  - name: forgelink-celery-worker
+    count: 4
+  - name: forgelink-kafka-consumer
+    count: 3

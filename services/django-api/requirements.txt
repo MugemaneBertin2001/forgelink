@@ -73,6 +73,9 @@ firebase-admin==6.5.0
 # Rate limiting
 django-ratelimit==4.1.0
 
+# Real-time WebSocket (Socket.IO)
+python-socketio==5.11.2
+
 # Utilities
 python-dateutil==2.9.0
 pytz==2024.1

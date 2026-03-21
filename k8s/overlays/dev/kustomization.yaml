@@ -11,5 +11,49 @@ nameSuffix: -dev
 commonLabels:
   environment: development
 
-# Development-specific patches
-patches: []
+# Development-specific patches - reduce replicas and resources
+patches:
+  # Reduce API replicas
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: forgelink-api
+  # Reduce IDP replicas
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: forgelink-idp
+  # Reduce Celery workers
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: forgelink-celery-worker
+  # Reduce Kafka consumers
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: forgelink-kafka-consumer
+
+# Use dev images
+images:
+  - name: forgelink-api
+    newName: forgelink-api
+    newTag: dev
+  - name: forgelink-idp
+    newName: forgelink-idp
+    newTag: dev
+  - name: forgelink-notification
+    newName: forgelink-notification
+    newTag: dev

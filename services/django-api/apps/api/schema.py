@@ -2,13 +2,20 @@
 import graphene
 from graphene_django import DjangoObjectType
 
+from apps.telemetry.schema import TelemetryQuery
 
-class Query(graphene.ObjectType):
-    """Root GraphQL Query."""
+
+class Query(TelemetryQuery, graphene.ObjectType):
+    """Root GraphQL Query.
+
+    Inherits from:
+    - TelemetryQuery: Device history, statistics, anomalies, dashboard
+    """
 
     hello = graphene.String(default_value="Welcome to ForgeLink Steel Factory IoT")
+    version = graphene.String(default_value="1.0.0")
 
-    # TODO: Add queries for assets, telemetry, alerts
+    # TODO: Add queries for assets, alerts
 
 
 class Mutation(graphene.ObjectType):

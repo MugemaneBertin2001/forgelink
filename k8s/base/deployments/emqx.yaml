@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: emqx
+  labels:
+    app.kubernetes.io/name: emqx
+    app.kubernetes.io/component: mqtt-broker
+spec:
+  serviceName: emqx-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: emqx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: emqx
+    spec:
+      containers:
+        - name: emqx
+          image: emqx/emqx:5.4.0
+          ports:
+            - containerPort: 1883
+              name: mqtt
+            - containerPort: 8883
+              name: mqtts
+            - containerPort: 8083
+              name: ws
+            - containerPort: 8084
+              name: wss
+            - containerPort: 18083
+              name: dashboard
+          envFrom:
+            - configMapRef:
+                name: emqx-config
+          env:
+            - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: emqx-secrets
+                  key: EMQX_DASHBOARD_PASSWORD
+          volumeMounts:
+            - name: emqx-data
+              mountPath: /opt/emqx/data
+            - name: emqx-log
+              mountPath: /opt/emqx/log
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 18083
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 18083
+            initialDelaySeconds: 30
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: emqx-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+    - metadata:
+        name: emqx-log
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

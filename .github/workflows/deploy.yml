@@ -1,0 +1,140 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      image_tag:
+        description: 'Image tag to deploy (defaults to latest main)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/forgelink
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Set image tag
+        id: image-tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update image tags in kustomization
+        working-directory: k8s/overlays/${{ inputs.environment }}
+        run: |
+          kustomize edit set image \
+            forgelink-api=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api:${{ steps.image-tag.outputs.tag }} \
+            forgelink-idp=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-idp:${{ steps.image-tag.outputs.tag }} \
+            forgelink-notification=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-notification:${{ steps.image-tag.outputs.tag }}
+
+      - name: Generate manifests
+        run: |
+          kustomize build k8s/overlays/${{ inputs.environment }} > manifests.yaml
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f manifests.yaml
+
+      - name: Wait for deployments
+        run: |
+          kubectl rollout status deployment/forgelink-api -n forgelink-${{ inputs.environment }} --timeout=300s
+          kubectl rollout status deployment/forgelink-idp -n forgelink-${{ inputs.environment }} --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n forgelink-${{ inputs.environment }}
+
+      - name: Run smoke tests
+        if: inputs.environment != 'production'
+        run: |
+          # Wait for services to be ready
+          sleep 30
+
+          # Get API endpoint
+          API_URL=$(kubectl get ingress forgelink-ingress -n forgelink-${{ inputs.environment }} -o jsonpath='{.spec.rules[0].host}')
+
+          # Health check
+          curl -sf "https://$API_URL/health/" || exit 1
+
+          echo "Smoke tests passed!"
+
+  # Database migrations (separate job for safety)
+  migrate:
+    name: Run Migrations
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: inputs.environment != 'production'
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Run Django migrations
+        run: |
+          kubectl exec -n forgelink-${{ inputs.environment }} \
+            deployment/forgelink-api -- \
+            python manage.py migrate --noinput
+
+      - name: Seed permissions
+        run: |
+          kubectl exec -n forgelink-${{ inputs.environment }} \
+            deployment/forgelink-api -- \
+            python manage.py seed_permissions
+
+  # Rollback capability
+  rollback:
+    name: Rollback
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: deploy
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Rollback deployments
+        run: |
+          kubectl rollout undo deployment/forgelink-api -n forgelink-${{ inputs.environment }}
+          kubectl rollout undo deployment/forgelink-idp -n forgelink-${{ inputs.environment }}
+
+      - name: Wait for rollback
+        run: |
+          kubectl rollout status deployment/forgelink-api -n forgelink-${{ inputs.environment }} --timeout=300s
+          kubectl rollout status deployment/forgelink-idp -n forgelink-${{ inputs.environment }} --timeout=300s
+
+      - name: Notify rollback
+        run: |
+          echo "::warning::Deployment failed and was rolled back"

@@ -1,0 +1,23 @@
+# ForgeLink Edge Gateway Dependencies
+
+# OPC-UA Client
+asyncua==1.1.0
+
+# MQTT Client
+paho-mqtt==2.1.0
+
+# Configuration
+pydantic==2.7.4
+pydantic-settings==2.3.3
+python-dotenv==1.0.1
+
+# Observability
+prometheus-client==0.20.0
+structlog==24.2.0
+
+# Async HTTP
+aiohttp==3.9.5
+
+# Testing
+pytest==8.2.2
+pytest-asyncio==0.23.7
