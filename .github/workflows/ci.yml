@@ -110,17 +110,17 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
+          cache: 'maven'
 
       - name: Run tests
-        run: ./gradlew test
+        run: mvn test -B
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: spring-idp-test-results
-          path: services/spring-idp/build/reports/tests/
+          path: services/spring-idp/target/surefire-reports/
 
   # Spring Notification Service Tests
   spring-notification-tests:
@@ -138,17 +138,17 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
+          cache: 'maven'
 
       - name: Run tests
-        run: ./gradlew test
+        run: mvn test -B
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: spring-notification-test-results
-          path: services/spring-notification-service/build/reports/tests/
+          path: services/spring-notification-service/target/surefire-reports/
 
   # Flutter Tests
   flutter-tests:

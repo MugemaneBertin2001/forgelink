@@ -70,11 +70,11 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
+          cache: 'maven'
 
       - name: Build JAR
         working-directory: services/spring-idp
-        run: ./gradlew bootJar
+        run: mvn package -DskipTests -B
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -122,11 +122,11 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
+          cache: 'maven'
 
       - name: Build JAR
         working-directory: services/spring-notification-service
-        run: ./gradlew bootJar
+        run: mvn package -DskipTests -B
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

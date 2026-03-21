@@ -22,8 +22,8 @@ updates:
           - "cryptography"
           - "pyjwt"
 
-  # Gradle dependencies (Spring IDP)
-  - package-ecosystem: "gradle"
+  # Maven dependencies (Spring IDP)
+  - package-ecosystem: "maven"
     directory: "/services/spring-idp"
     schedule:
       interval: "weekly"
@@ -37,8 +37,8 @@ updates:
         patterns:
           - "org.springframework*"
 
-  # Gradle dependencies (Spring Notification)
-  - package-ecosystem: "gradle"
+  # Maven dependencies (Spring Notification)
+  - package-ecosystem: "maven"
     directory: "/services/spring-notification-service"
     schedule:
       interval: "weekly"
