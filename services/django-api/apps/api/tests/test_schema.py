@@ -1,7 +1,6 @@
 """Tests for GraphQL schema."""
 
 import pytest
-
 from graphene.test import Client
 
 from apps.api.schema import schema
@@ -224,8 +223,9 @@ class TestGraphQLSchema:
 
     def test_bulk_acknowledge_mutation(self, graphql_client, device, alert_rule):
         """Test bulk acknowledge mutation."""
-        from apps.alerts.models import Alert
         import json
+
+        from apps.alerts.models import Alert
 
         alerts = [
             Alert.objects.create(

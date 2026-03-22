@@ -1,9 +1,10 @@
 """Tests for audit tasks."""
 
-import pytest
 from datetime import date, timedelta
 
 from django.utils import timezone
+
+import pytest
 
 from apps.audit.models import AuditLog, AuditSummary
 from apps.audit.tasks import (

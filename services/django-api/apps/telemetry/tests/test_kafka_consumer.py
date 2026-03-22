@@ -1,8 +1,9 @@
 """Tests for Kafka consumer."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from apps.telemetry.kafka_consumer import TelemetryKafkaConsumer, TelemetryMessage
 

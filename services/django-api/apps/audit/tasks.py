@@ -3,8 +3,9 @@
 import logging
 from datetime import timedelta
 
-from celery import shared_task
 from django.utils import timezone
+
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,9 @@ def generate_daily_summary(date_str: str = None):
 
     Run daily at 1:00 AM via Celery Beat.
     """
-    from apps.audit.models import AuditSummary
     from datetime import date
+
+    from apps.audit.models import AuditSummary
 
     try:
         if date_str:

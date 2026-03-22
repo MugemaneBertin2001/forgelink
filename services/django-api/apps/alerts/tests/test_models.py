@@ -1,8 +1,10 @@
 """Tests for alerts models."""
 
-import pytest
 from datetime import timedelta
+
 from django.utils import timezone
+
+import pytest
 
 from apps.alerts.models import Alert, AlertHistory, AlertRule
 

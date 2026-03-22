@@ -4,11 +4,11 @@ from datetime import date, timedelta
 
 from django.db.models import Avg, Count
 from django.utils import timezone
-
-from django_filters import rest_framework as filters
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+from django_filters import rest_framework as filters
 
 from apps.core.permissions import HasPermission
 

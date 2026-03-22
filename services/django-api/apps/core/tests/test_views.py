@@ -1,7 +1,8 @@
 """Tests for core views."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestHealthCheck:

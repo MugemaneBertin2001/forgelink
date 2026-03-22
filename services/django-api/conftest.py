@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-import pytest
 from django.test import RequestFactory
-
 from rest_framework.test import APIClient
+
+import pytest
 
 
 @pytest.fixture

@@ -2,9 +2,10 @@
 
 from unittest.mock import patch
 
-import pytest
 from django.http import JsonResponse
 from django.test import RequestFactory
+
+import pytest
 
 from apps.core.middleware import (
     AuditMiddleware,

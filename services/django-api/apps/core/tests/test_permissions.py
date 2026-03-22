@@ -1,9 +1,10 @@
 """Tests for permission classes."""
 
-import pytest
 from unittest.mock import MagicMock
 
 from rest_framework.test import APIRequestFactory
+
+import pytest
 
 from apps.core.permissions import (
     AreaAccessPermission,

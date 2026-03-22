@@ -1,9 +1,10 @@
 """Tests for alerts views."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from rest_framework.test import APIClient
+
+import pytest
 
 from apps.alerts.models import Alert, AlertHistory
 

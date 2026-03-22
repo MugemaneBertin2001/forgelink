@@ -2,7 +2,7 @@
 
 import pytest
 
-from apps.core.models import DEFAULT_ROLES, Permission, Role, SYSTEM_PERMISSIONS
+from apps.core.models import DEFAULT_ROLES, SYSTEM_PERMISSIONS, Permission, Role
 
 
 @pytest.mark.django_db

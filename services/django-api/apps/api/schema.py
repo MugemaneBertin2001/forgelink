@@ -13,7 +13,6 @@ from apps.alerts.models import Alert, AlertHistory, AlertRule
 from apps.assets.models import Area, Cell, Device, DeviceType, Line, Plant
 from apps.telemetry.schema import TelemetryQuery
 
-
 # =============================================================================
 # Asset Types
 # =============================================================================

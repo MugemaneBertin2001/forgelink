@@ -1,8 +1,10 @@
 """Tests for audit models."""
 
-import pytest
 from datetime import date, timedelta
+
 from django.utils import timezone
+
+import pytest
 
 from apps.audit.models import AuditLog, AuditSummary
 

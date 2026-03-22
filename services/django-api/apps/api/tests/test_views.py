@@ -2,11 +2,12 @@
 
 import json
 import time
-import pytest
 from unittest.mock import patch
 
 from django.test import RequestFactory
 from rest_framework.test import APIClient
+
+import pytest
 
 from apps.api.views import (
     _acknowledge_alert_from_slack,

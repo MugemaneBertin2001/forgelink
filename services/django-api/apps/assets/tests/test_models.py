@@ -1,8 +1,10 @@
 """Tests for assets models."""
 
-import pytest
 from datetime import timedelta
+
 from django.utils import timezone
+
+import pytest
 
 from apps.assets.models import Area, Cell, Device, DeviceType, Line, Plant
 
