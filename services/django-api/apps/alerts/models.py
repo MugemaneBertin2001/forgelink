@@ -181,16 +181,14 @@ class Alert(models.Model):
         self.status = "acknowledged"
         self.acknowledged_at = timezone.now()
         self.acknowledged_by = user
-        self.save(
-            update_fields=["status", "acknowledged_at", "acknowledged_by", "updated_at"]
-        )
+        self.save(update_fields=["status", "acknowledged_at", "acknowledged_by"])
 
     def resolve(self, user: str = "system"):
         """Resolve the alert."""
         self.status = "resolved"
         self.resolved_at = timezone.now()
         self.resolved_by = user
-        self.save(update_fields=["status", "resolved_at", "resolved_by", "updated_at"])
+        self.save(update_fields=["status", "resolved_at", "resolved_by"])
 
     @property
     def duration_seconds(self) -> int:

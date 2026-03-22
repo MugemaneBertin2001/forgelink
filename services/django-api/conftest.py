@@ -134,7 +134,7 @@ def mock_kafka_producer():
 @pytest.fixture
 def mock_cache():
     """Mock Django cache."""
-    with patch("django.core.cache.cache") as mock:
+    with patch("apps.core.models.cache") as mock:
         mock.get.return_value = None
         mock.set.return_value = None
         yield mock

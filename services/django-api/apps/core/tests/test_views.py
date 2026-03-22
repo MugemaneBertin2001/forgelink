@@ -26,13 +26,11 @@ class TestReadinessCheck:
         with (
             patch("django.db.connection.cursor") as mock_cursor,
             patch("django.core.cache.cache") as mock_cache,
-            patch("apps.telemetry.tdengine.get_tdengine_connection") as mock_td,
         ):
             mock_cursor.return_value.__enter__ = MagicMock()
             mock_cursor.return_value.__exit__ = MagicMock()
             mock_cache.set.return_value = None
             mock_cache.get.return_value = "ok"
-            mock_td.return_value = MagicMock()
 
             response = client.get("/ready/")
             data = response.json()

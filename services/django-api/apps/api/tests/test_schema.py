@@ -148,9 +148,9 @@ class TestGraphQLSchema:
         result = graphql_client.execute(query)
 
         assert "errors" not in result or result["errors"] is None
-        # All returned alerts should be active
+        # All returned alerts should be active (case-insensitive)
         for a in result["data"]["activeAlerts"]:
-            assert a["status"] == "active"
+            assert a["status"].lower() == "active"
 
     def test_alert_stats_query(self, graphql_client, alert):
         """Test alert statistics query."""

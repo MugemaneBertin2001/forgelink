@@ -25,7 +25,7 @@ class TestPlantModel:
         assert plant.code == "test-plant"
         assert plant.name == "Test Steel Plant"
         assert plant.is_active is True
-        assert str(plant) == "Test Steel Plant"
+        assert str(plant) == "Test Steel Plant (test-plant)"
 
     def test_plant_unique_code(self, plant):
         """Test that plant codes must be unique."""

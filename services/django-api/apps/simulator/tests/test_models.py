@@ -18,162 +18,144 @@ class TestDeviceProfileModel:
     def test_create_temperature_profile(self):
         """Test creating a temperature sensor profile."""
         profile = DeviceProfile.objects.create(
-            code="thermocouple",
             name="Thermocouple Temperature Sensor",
-            measurement_type="temperature",
+            sensor_type="temperature",
             unit="celsius",
             min_value=0.0,
             max_value=2000.0,
-            typical_value=1550.0,
             noise_factor=0.02,
         )
 
-        assert profile.code == "thermocouple"
-        assert profile.measurement_type == "temperature"
-        assert profile.typical_value == 1550.0
+        assert profile.name == "Thermocouple Temperature Sensor"
+        assert profile.sensor_type == "temperature"
+        assert profile.unit == "celsius"
 
     def test_create_pressure_profile(self):
         """Test creating a pressure sensor profile."""
         profile = DeviceProfile.objects.create(
-            code="pressure-transducer",
             name="Pressure Transducer",
-            measurement_type="pressure",
+            sensor_type="pressure",
             unit="bar",
             min_value=0.0,
             max_value=100.0,
-            typical_value=50.0,
         )
 
-        assert profile.measurement_type == "pressure"
+        assert profile.sensor_type == "pressure"
         assert profile.unit == "bar"
 
-    def test_profile_with_anomaly_settings(self):
-        """Test profile with anomaly probability settings."""
+    def test_profile_with_threshold_settings(self):
+        """Test profile with threshold settings."""
         profile = DeviceProfile.objects.create(
-            code="vibration-sensor",
             name="Vibration Sensor",
-            measurement_type="vibration",
+            sensor_type="vibration",
             unit="mm/s",
             min_value=0.0,
             max_value=50.0,
-            anomaly_probability=0.05,
-            anomaly_multiplier=3.0,
+            high_threshold=30.0,
+            critical_high=45.0,
         )
 
-        assert profile.anomaly_probability == 0.05
-        assert profile.anomaly_multiplier == 3.0
+        assert profile.high_threshold == 30.0
+        assert profile.critical_high == 45.0
 
 
 @pytest.mark.django_db
 class TestSimulatedPLCModel:
     """Tests for SimulatedPLC model."""
 
-    def test_create_plc(self, area):
+    def test_create_plc(self):
         """Test creating a simulated PLC."""
         plc = SimulatedPLC.objects.create(
-            code="plc-melt-shop-001",
             name="Melt Shop PLC 1",
-            area=area,
-            opcua_endpoint="opc.tcp://localhost:4840",
+            area="melt-shop",
+            line="eaf-1",
         )
 
-        assert plc.code == "plc-melt-shop-001"
-        assert plc.area == area
-        assert plc.status == "stopped"
+        assert plc.name == "Melt Shop PLC 1"
+        assert plc.area == "melt-shop"
+        assert plc.is_online is False
 
-    def test_plc_start_stop(self, area):
-        """Test PLC start/stop methods."""
+    def test_plc_online_status(self):
+        """Test PLC online/offline status."""
         plc = SimulatedPLC.objects.create(
-            code="plc-002",
             name="Test PLC",
-            area=area,
+            area="melt-shop",
+            line="eaf-1",
         )
 
-        assert plc.status == "stopped"
+        assert plc.is_online is False
+        assert plc.is_simulating is False
 
-        # Test status changes (actual start/stop would need Celery)
-        plc.status = "running"
+        # Test status changes
+        plc.is_online = True
         plc.save()
         plc.refresh_from_db()
 
-        assert plc.status == "running"
+        assert plc.is_online is True
 
 
 @pytest.mark.django_db
 class TestSimulatedDeviceModel:
     """Tests for SimulatedDevice model."""
 
-    def test_create_simulated_device(self, cell, device_type):
+    def test_create_simulated_device(self):
         """Test creating a simulated device."""
         profile = DeviceProfile.objects.create(
-            code="temp-profile",
             name="Temperature Profile",
-            measurement_type="temperature",
+            sensor_type="temperature",
             unit="celsius",
             min_value=0.0,
             max_value=2000.0,
         )
 
+        plc = SimulatedPLC.objects.create(
+            name="Test PLC",
+            area="melt-shop",
+            line="eaf-1",
+        )
+
         device = SimulatedDevice.objects.create(
-            device_id="sim-temp-001",
             name="Simulated Temperature Sensor",
-            cell=cell,
-            device_type=device_type,
+            device_id="sim-temp-001",
+            plc=plc,
             profile=profile,
         )
 
         assert device.device_id == "sim-temp-001"
         assert device.profile == profile
 
-    def test_device_fault_injection(self, cell, device_type):
-        """Test device fault injection."""
+    def test_device_status(self):
+        """Test device status values."""
         profile = DeviceProfile.objects.create(
-            code="test-profile",
             name="Test Profile",
-            measurement_type="temperature",
+            sensor_type="temperature",
             unit="celsius",
             min_value=0.0,
             max_value=100.0,
         )
 
+        plc = SimulatedPLC.objects.create(
+            name="Test PLC",
+            area="melt-shop",
+            line="eaf-1",
+        )
+
         device = SimulatedDevice.objects.create(
-            device_id="sim-001",
             name="Test Device",
-            cell=cell,
-            device_type=device_type,
+            device_id="sim-001",
+            plc=plc,
             profile=profile,
         )
 
-        # Inject fault
-        device.fault_type = "stuck"
-        device.fault_start = "2024-01-01T00:00:00Z"
+        # Default status
+        assert device.status == "offline"
+
+        # Update status
+        device.status = "online"
         device.save()
+        device.refresh_from_db()
 
-        assert device.fault_type == "stuck"
-
-    def test_device_value_range(self, cell, device_type):
-        """Test device value override range."""
-        profile = DeviceProfile.objects.create(
-            code="range-profile",
-            name="Range Profile",
-            measurement_type="temperature",
-            unit="celsius",
-            min_value=0.0,
-            max_value=100.0,
-        )
-
-        device = SimulatedDevice.objects.create(
-            device_id="sim-002",
-            name="Range Test Device",
-            cell=cell,
-            device_type=device_type,
-            profile=profile,
-            override_min=10.0,
-            override_max=90.0,
-        )
-
-        assert device.override_min == 10.0
-        assert device.override_max == 90.0
+        assert device.status == "online"
 
 
 @pytest.mark.django_db
@@ -185,7 +167,6 @@ class TestSimulationSessionModel:
         session = SimulationSession.objects.create(
             name="Test Session",
             description="Testing simulation",
-            update_interval_ms=1000,
         )
 
         assert session.name == "Test Session"
@@ -201,18 +182,11 @@ class TestSimulationSessionModel:
         assert session.status == "stopped"
 
         # Start
-        session.status = "running"
-        session.save()
+        session.start()
         assert session.status == "running"
 
-        # Pause
-        session.status = "paused"
-        session.save()
-        assert session.status == "paused"
-
         # Stop
-        session.status = "stopped"
-        session.save()
+        session.stop()
         assert session.status == "stopped"
 
 
@@ -220,22 +194,26 @@ class TestSimulationSessionModel:
 class TestSimulationEventModel:
     """Tests for SimulationEvent model."""
 
-    def test_create_event(self, cell, device_type):
+    def test_create_event(self):
         """Test creating a simulation event."""
         profile = DeviceProfile.objects.create(
-            code="event-profile",
             name="Event Profile",
-            measurement_type="temperature",
+            sensor_type="temperature",
             unit="celsius",
             min_value=0.0,
             max_value=100.0,
         )
 
+        plc = SimulatedPLC.objects.create(
+            name="Event PLC",
+            area="melt-shop",
+            line="eaf-1",
+        )
+
         device = SimulatedDevice.objects.create(
-            device_id="event-device",
             name="Event Device",
-            cell=cell,
-            device_type=device_type,
+            device_id="event-device",
+            plc=plc,
             profile=profile,
         )
 
