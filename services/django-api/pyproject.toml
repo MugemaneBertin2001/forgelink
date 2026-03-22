@@ -32,3 +32,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 ignore = ["E501"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "apps.core.settings"
+python_files = ["test_*.py", "*_test.py"]
+pythonpath = ["."]
+addopts = "-v --tb=short"

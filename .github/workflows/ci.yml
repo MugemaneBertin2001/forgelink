@@ -66,7 +66,7 @@ jobs:
 
       - name: Run tests
         env:
-          DJANGO_SETTINGS_MODULE: forgelink.settings.test
+          DJANGO_SETTINGS_MODULE: apps.core.settings
           DATABASE_URL: postgres://forgelink:forgelink@localhost:5432/forgelink_test
           REDIS_URL: redis://localhost:6379/0
         run: |

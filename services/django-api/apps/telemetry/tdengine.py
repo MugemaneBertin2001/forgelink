@@ -21,12 +21,14 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # Valid areas in the steel plant (ISA-95 hierarchy)
-VALID_AREAS = frozenset([
-    "melt-shop",
-    "continuous-casting",
-    "rolling-mill",
-    "finishing",
-])
+VALID_AREAS = frozenset(
+    [
+        "melt-shop",
+        "continuous-casting",
+        "rolling-mill",
+        "finishing",
+    ]
+)
 
 # Valid time periods for queries
 VALID_PERIODS = frozenset(["1h", "6h", "12h", "24h", "7d", "30d"])
@@ -77,7 +79,9 @@ def validate_interval(interval: str) -> str:
         raise ValueError("interval must be a non-empty string")
     interval = interval.strip().lower()
     if interval not in VALID_INTERVALS:
-        raise ValueError(f"Invalid interval: {interval}. Must be one of: {VALID_INTERVALS}")
+        raise ValueError(
+            f"Invalid interval: {interval}. Must be one of: {VALID_INTERVALS}"
+        )
     return interval
 
 
@@ -100,6 +104,7 @@ def sanitize_identifier(value: str) -> str:
     if not sanitized:
         raise ValueError(f"Invalid identifier after sanitization: {value}")
     return sanitized
+
 
 # Connection pool (thread-local)
 _local = threading.local()
