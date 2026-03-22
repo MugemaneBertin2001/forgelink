@@ -3,10 +3,6 @@
 from django.contrib import admin
 
 from unfold.admin import ModelAdmin
-from unfold.contrib.filters.admin import (
-    DropdownFilter,
-    RangeDateFilter,
-)
 
 from .models import AuditLog, AuditSummary
 
@@ -26,10 +22,10 @@ class AuditLogAdmin(ModelAdmin):
         "ip_address",
     ]
     list_filter = [
-        ("action", DropdownFilter),
-        ("resource_type", DropdownFilter),
-        ("status_code", DropdownFilter),
-        ("timestamp", RangeDateFilter),
+        "action",
+        "resource_type",
+        "status_code",
+        "timestamp",
     ]
     search_fields = ["user_id", "resource", "resource_id", "ip_address"]
     readonly_fields = [
@@ -103,7 +99,7 @@ class AuditSummaryAdmin(ModelAdmin):
         "avg_response_time_ms",
     ]
     list_filter = [
-        ("date", RangeDateFilter),
+        "date",
     ]
     readonly_fields = [
         "id",
