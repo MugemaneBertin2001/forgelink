@@ -185,7 +185,7 @@ jobs:
         run: flutter build ios --release --no-codesign || true
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-release
           path: services/flutter-app/build/app/outputs/flutter-apk/app-release.apk

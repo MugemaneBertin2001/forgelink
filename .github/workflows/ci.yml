@@ -121,7 +121,7 @@ jobs:
         run: mvn test -B
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: spring-idp-test-results
@@ -149,7 +149,7 @@ jobs:
         run: mvn test -B
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: spring-notification-test-results
@@ -250,7 +250,7 @@ jobs:
           bandit -r services/django-api/apps/ -f json -o bandit-results.json -ll
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bandit-results
           path: bandit-results.json
