@@ -187,6 +187,9 @@ Thumbs.db
 *.jks
 secrets/
 !secrets/.gitkeep
+# Allow K8s secrets templates (example files only)
+!k8s/**/secrets/
+!k8s/**/secrets/*.example.yaml
 
 # -------------------- Logs --------------------
 logs/

@@ -14,7 +14,8 @@ resources:
   - configmaps/app-config.yaml
 
   # Secrets (use sealed-secrets or external-secrets in production)
-  - secrets/secrets.yaml
+  # This is a template - copy to secrets.yaml and fill in actual values
+  - secrets/secrets.example.yaml
 
   # Infrastructure
   - deployments/postgresql.yaml
@@ -36,6 +37,8 @@ resources:
   # HPA
   - hpa/hpa.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: forgelink-platform
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: forgelink-platform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: true

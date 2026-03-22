@@ -8,8 +8,10 @@ resources:
 
 nameSuffix: -dev
 
-commonLabels:
-  environment: development
+labels:
+  - pairs:
+      environment: development
+    includeSelectors: true
 
 # Development-specific patches - reduce replicas and resources
 patches:

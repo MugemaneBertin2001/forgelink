@@ -8,5 +8,7 @@ resources:
 
 nameSuffix: -staging
 
-commonLabels:
-  environment: staging
+labels:
+  - pairs:
+      environment: staging
+    includeSelectors: true

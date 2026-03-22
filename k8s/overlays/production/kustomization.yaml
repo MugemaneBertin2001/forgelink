@@ -6,8 +6,10 @@ namespace: forgelink
 resources:
   - ../../base
 
-commonLabels:
-  environment: production
+labels:
+  - pairs:
+      environment: production
+    includeSelectors: true
 
 # Production resource adjustments
 patches:
