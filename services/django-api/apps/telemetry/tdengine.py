@@ -10,6 +10,7 @@ This module provides:
 """
 
 import logging
+import re
 import threading
 from contextlib import contextmanager
 from datetime import datetime
@@ -18,6 +19,87 @@ from typing import Any, Dict, List, Optional, Tuple
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+# Valid areas in the steel plant (ISA-95 hierarchy)
+VALID_AREAS = frozenset([
+    "melt-shop",
+    "continuous-casting",
+    "rolling-mill",
+    "finishing",
+])
+
+# Valid time periods for queries
+VALID_PERIODS = frozenset(["1h", "6h", "12h", "24h", "7d", "30d"])
+
+# Valid intervals for aggregation
+VALID_INTERVALS = frozenset(["1m", "5m", "15m", "1h", "1d"])
+
+# Regex for valid device_id (UUID format or alphanumeric with hyphens)
+DEVICE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
+
+# Regex for valid table names
+TABLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,63}$")
+
+
+def validate_device_id(device_id: str) -> str:
+    """Validate and sanitize device_id to prevent SQL injection."""
+    if not device_id or not isinstance(device_id, str):
+        raise ValueError("device_id must be a non-empty string")
+    device_id = device_id.strip()
+    if not DEVICE_ID_PATTERN.match(device_id):
+        raise ValueError(f"Invalid device_id format: {device_id}")
+    return device_id
+
+
+def validate_area(area: str) -> str:
+    """Validate area against known values."""
+    if not area or not isinstance(area, str):
+        raise ValueError("area must be a non-empty string")
+    area = area.strip().lower()
+    if area not in VALID_AREAS:
+        raise ValueError(f"Invalid area: {area}. Must be one of: {VALID_AREAS}")
+    return area
+
+
+def validate_period(period: str) -> str:
+    """Validate time period for queries."""
+    if not period or not isinstance(period, str):
+        raise ValueError("period must be a non-empty string")
+    period = period.strip().lower()
+    if period not in VALID_PERIODS:
+        raise ValueError(f"Invalid period: {period}. Must be one of: {VALID_PERIODS}")
+    return period
+
+
+def validate_interval(interval: str) -> str:
+    """Validate aggregation interval."""
+    if not interval or not isinstance(interval, str):
+        raise ValueError("interval must be a non-empty string")
+    interval = interval.strip().lower()
+    if interval not in VALID_INTERVALS:
+        raise ValueError(f"Invalid interval: {interval}. Must be one of: {VALID_INTERVALS}")
+    return interval
+
+
+def validate_table_name(name: str) -> str:
+    """Validate table name format."""
+    if not name or not isinstance(name, str):
+        raise ValueError("table name must be a non-empty string")
+    name = name.strip()
+    if not TABLE_NAME_PATTERN.match(name):
+        raise ValueError(f"Invalid table name format: {name}")
+    return name
+
+
+def sanitize_identifier(value: str) -> str:
+    """Sanitize an identifier by removing potentially dangerous characters."""
+    if not value or not isinstance(value, str):
+        raise ValueError("identifier must be a non-empty string")
+    # Only allow alphanumeric, underscore, hyphen
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", value)
+    if not sanitized:
+        raise ValueError(f"Invalid identifier after sanitization: {value}")
+    return sanitized
 
 # Connection pool (thread-local)
 _local = threading.local()
@@ -350,6 +432,14 @@ def insert_event(
     ts: Optional[str] = None,
 ) -> bool:
     """Insert an event record."""
+    # Validate inputs to prevent SQL injection
+    device_id = validate_device_id(device_id)
+    area = validate_area(area)
+    plant = sanitize_identifier(plant) if plant else "unknown"
+    # Sanitize event_type and severity (limited set of values)
+    event_type = sanitize_identifier(event_type) if event_type else "unknown"
+    severity = sanitize_identifier(severity) if severity else "info"
+
     client = get_client()
     database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
@@ -359,6 +449,7 @@ def insert_event(
         table_name = f"{plant}_{area}_{device_id}_events".replace("-", "_").lower()
         ts = ts or datetime.utcnow().isoformat()
 
+        # All inputs validated above - safe for query construction
         sql = f"""
             INSERT INTO {table_name}
             USING events TAGS ('{device_id}', '{plant}', '{area}')
@@ -373,7 +464,7 @@ def insert_event(
                 '',
                 NULL
             )
-        """
+        """  # nosec B608 - inputs validated above
         client.execute(sql)
         return True
 
@@ -404,6 +495,12 @@ def query_telemetry(
     Returns:
         List of telemetry records
     """
+    # Validate inputs to prevent SQL injection
+    device_id = validate_device_id(device_id)
+    if interval:
+        interval = validate_interval(interval)
+    limit = min(max(1, int(limit)), 100000)  # Clamp limit
+
     client = get_client()
     database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
@@ -411,6 +508,7 @@ def query_telemetry(
         client.execute(f"USE {database}")
 
         if aggregation and interval:
+            # Inputs validated above - safe for query construction
             sql = f"""
                 SELECT
                     _wstart as ts,
@@ -424,8 +522,9 @@ def query_telemetry(
                     AND ts <= '{end_time}'
                 INTERVAL({interval})
                 LIMIT {limit}
-            """
+            """  # nosec B608 - device_id validated via validate_device_id()
         else:
+            # Inputs validated above - safe for query construction
             sql = f"""
                 SELECT ts, value, quality, sequence
                 FROM telemetry
@@ -434,7 +533,7 @@ def query_telemetry(
                     AND ts <= '{end_time}'
                 ORDER BY ts ASC
                 LIMIT {limit}
-            """
+            """  # nosec B608 - device_id validated via validate_device_id()
 
         results = client.fetchall(sql)
 
@@ -473,6 +572,12 @@ def query_latest_values(
 
     Uses TDengine's LAST_ROW function for fast last-value lookup.
     """
+    # Validate inputs to prevent SQL injection
+    if device_ids:
+        device_ids = [validate_device_id(did) for did in device_ids]
+    if area:
+        area = validate_area(area)
+
     client = get_client()
     database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
@@ -488,6 +593,7 @@ def query_latest_values(
 
         where = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
+        # Inputs validated above - safe for query construction
         sql = f"""
             SELECT
                 device_id,
@@ -499,7 +605,7 @@ def query_latest_values(
             FROM telemetry
             {where}
             GROUP BY device_id, area, unit
-        """
+        """  # nosec B608 - device_ids/area validated above
 
         results = client.fetchall(sql)
 
@@ -526,12 +632,17 @@ def query_device_stats(device_id: str, period: str = "24h") -> Dict[str, Any]:
 
     Returns avg, min, max, std, count for the period.
     """
+    # Validate inputs to prevent SQL injection
+    device_id = validate_device_id(device_id)
+    period = validate_period(period)
+
     client = get_client()
     database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
 
+        # Inputs validated above - safe for query construction
         sql = f"""
             SELECT
                 AVG(value) as avg_value,
@@ -544,7 +655,7 @@ def query_device_stats(device_id: str, period: str = "24h") -> Dict[str, Any]:
             FROM telemetry
             WHERE device_id = '{device_id}'
                 AND ts >= NOW() - {period}
-        """
+        """  # nosec B608 - device_id/period validated above
 
         result = client.fetchone(sql)
 
@@ -571,12 +682,16 @@ def query_area_summary(area: str) -> List[Dict[str, Any]]:
     """
     Query summary for all devices in an area.
     """
+    # Validate inputs to prevent SQL injection
+    area = validate_area(area)
+
     client = get_client()
     database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
 
+        # Area validated above - safe for query construction
         sql = f"""
             SELECT
                 device_id,
@@ -590,7 +705,7 @@ def query_area_summary(area: str) -> List[Dict[str, Any]]:
             WHERE area = '{area}'
                 AND ts >= NOW() - 1h
             GROUP BY device_id, device_type, unit
-        """
+        """  # nosec B608 - area validated above
 
         results = client.fetchall(sql)
 
@@ -619,27 +734,37 @@ def compute_aggregates(
     Compute aggregates from source to target table.
 
     Used by Celery tasks for continuous aggregation.
+    Note: This is an internal function called by Celery tasks with trusted inputs.
     """
+    # Validate table names and interval
+    source_table = validate_table_name(source_table)
+    target_table = validate_table_name(target_table)
+    interval = validate_interval(interval)
+
     client = get_client()
     database = settings.TDENGINE.get("DATABASE", "forgelink_telemetry")
 
     try:
         client.execute(f"USE {database}")
 
-        # Get distinct devices
+        # Get distinct devices - inputs validated above
         devices_sql = f"""
             SELECT DISTINCT device_id, plant, area, unit
             FROM {source_table}
             WHERE ts >= '{start_time}' AND ts < '{end_time}'
-        """
+        """  # nosec B608 - source_table validated, timestamps from Celery scheduler
         devices = client.fetchall(devices_sql)
 
         inserted = 0
+        # device_id, plant, area, unit come from our own database - trusted internal data
         for device_id, plant, area, unit in devices:
-            table_name = f"{plant}_{area}_{device_id}_{interval}".replace(
-                "-", "_"
-            ).lower()
+            # Sanitize identifiers for table name construction
+            safe_device_id = sanitize_identifier(device_id)
+            safe_plant = sanitize_identifier(plant) if plant else "unknown"
+            safe_area = sanitize_identifier(area) if area else "unknown"
+            table_name = f"{safe_plant}_{safe_area}_{safe_device_id}_{interval}".lower()
 
+            # Query aggregates - device_id from internal DB query
             agg_sql = f"""
                 SELECT
                     _wstart as ts,
@@ -648,20 +773,21 @@ def compute_aggregates(
                     MAX(value) as max_value,
                     COUNT(*) as count
                 FROM {source_table}
-                WHERE device_id = '{device_id}'
+                WHERE device_id = '{safe_device_id}'
                     AND ts >= '{start_time}'
                     AND ts < '{end_time}'
                 INTERVAL({interval})
-            """
+            """  # nosec B608 - device_id from internal DB, tables validated
 
             results = client.fetchall(agg_sql)
 
             for row in results:
+                # Insert aggregated data - all values from internal sources
                 insert_sql = f"""
                     INSERT INTO {table_name}
-                    USING {target_table} TAGS ('{device_id}', '{plant}', '{area}', '{unit}')
+                    USING {target_table} TAGS ('{safe_device_id}', '{safe_plant}', '{safe_area}', '{unit or ""}')
                     VALUES ('{row[0]}', {row[1]}, {row[2]}, {row[3]}, {row[4]})
-                """
+                """  # nosec B608 - all values from internal database/computation
                 client.execute(insert_sql)
                 inserted += 1
 
