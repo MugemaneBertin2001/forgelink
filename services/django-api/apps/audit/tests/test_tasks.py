@@ -2,7 +2,6 @@
 
 import pytest
 from datetime import date, timedelta
-from unittest.mock import patch, MagicMock
 
 from django.utils import timezone
 
@@ -69,7 +68,7 @@ class TestGenerateDailySummaryTask:
                 timestamp=timezone.now() - timedelta(days=1),
             )
 
-        result = generate_daily_summary()
+        generate_daily_summary()
 
         summary = AuditSummary.objects.get(date=yesterday)
         assert summary.total_requests == 5
@@ -78,7 +77,7 @@ class TestGenerateDailySummaryTask:
         """Test generating summary for specific date."""
         target_date = "2024-01-15"
 
-        result = generate_daily_summary(target_date)
+        generate_daily_summary(target_date)
 
         summary = AuditSummary.objects.get(date=date.fromisoformat(target_date))
         assert summary is not None
@@ -163,7 +162,7 @@ class TestBackfillSummariesTask:
             total_requests=100,
         )
 
-        generated = backfill_summaries(days=5)
+        backfill_summaries(days=5)
 
         # Should not recreate existing summary
         summaries = AuditSummary.objects.filter(date=yesterday)

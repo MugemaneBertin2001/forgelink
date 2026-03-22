@@ -1,7 +1,6 @@
 """Tests for core views."""
 
 import pytest
-from django.test import Client
 from unittest.mock import patch, MagicMock
 
 

@@ -1,8 +1,6 @@
 """Tests for TDengine integration."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from datetime import datetime, timezone
 
 from apps.telemetry.tdengine import (
     VALID_AREAS,
@@ -124,9 +122,7 @@ class TestTDengineConnection:
     def test_tdengine_module_has_connection_function(self):
         """Test that tdengine module has connection capabilities."""
         from apps.telemetry import tdengine
-        # Module should have some connection-related function
-        funcs = [f for f in dir(tdengine) if "connect" in f.lower() or "connection" in f.lower()]
-        # Even if no connection functions, the module should exist and have validation
+        # Module should exist and have validation functions
         assert hasattr(tdengine, "validate_device_id")
 
 

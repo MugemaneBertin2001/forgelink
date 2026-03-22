@@ -197,7 +197,7 @@ class TestAlertHistoryModel:
     def test_alert_history_ordering(self, device, alert_rule):
         """Test that history is ordered by triggered_at descending."""
         # Create multiple alerts with different timestamps
-        old_alert = Alert.objects.create(
+        Alert.objects.create(
             device=device,
             rule=alert_rule,
             alert_type="threshold_high",
@@ -206,7 +206,7 @@ class TestAlertHistoryModel:
             triggered_at=timezone.now() - timedelta(days=1),
         )
 
-        new_alert = Alert.objects.create(
+        Alert.objects.create(
             device=device,
             rule=alert_rule,
             alert_type="threshold_high",

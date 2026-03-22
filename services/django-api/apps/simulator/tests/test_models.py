@@ -1,7 +1,6 @@
 """Tests for simulator models."""
 
 import pytest
-from unittest.mock import patch
 
 from apps.simulator.models import (
     DeviceProfile,

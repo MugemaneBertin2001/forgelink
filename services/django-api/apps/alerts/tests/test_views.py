@@ -1,15 +1,11 @@
 """Tests for alerts views."""
 
 import pytest
-from datetime import timedelta
 from unittest.mock import patch, MagicMock
 
-from django.urls import reverse
-from django.utils import timezone
-from rest_framework import status
 from rest_framework.test import APIClient
 
-from apps.alerts.models import Alert, AlertHistory, AlertRule
+from apps.alerts.models import Alert, AlertHistory
 
 
 @pytest.fixture
@@ -84,7 +80,7 @@ class TestAlertViewSet:
             message="Active alert",
             status="active",
         )
-        resolved = Alert.objects.create(
+        Alert.objects.create(
             device=device,
             rule=alert_rule,
             alert_type="threshold_high",

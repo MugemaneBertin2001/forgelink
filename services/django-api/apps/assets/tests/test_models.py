@@ -259,7 +259,6 @@ class TestDeviceModel:
 
     def test_device_update_status(self, device):
         """Test updating device status."""
-        old_status = device.status
         device.status = "offline"
         device.save()
         device.refresh_from_db()

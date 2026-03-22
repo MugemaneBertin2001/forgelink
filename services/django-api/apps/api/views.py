@@ -104,8 +104,6 @@ def _handle_interactive_message(data: dict) -> Response:
 
 def _handle_block_actions(data: dict) -> Response:
     """Handle block kit interactive actions."""
-    from apps.alerts.models import Alert
-
     actions = data.get("actions", [])
     user = data.get("user", {})
     username = user.get("username", user.get("name", "slack_user"))
@@ -195,7 +193,7 @@ def _send_status_summary(channel: str) -> None:
 
     try:
         active_alerts = Alert.objects.filter(status="active").count()
-        critical_alerts = Alert.objects.filter(
+        critical_count = Alert.objects.filter(
             status="active", severity="critical"
         ).count()
         online_devices = Device.objects.filter(status="online").count()
@@ -203,7 +201,8 @@ def _send_status_summary(channel: str) -> None:
 
         logger.info(
             f"Status summary requested for {channel}: "
-            f"{active_alerts} active alerts, {online_devices}/{total_devices} devices online"
+            f"{active_alerts} active alerts ({critical_count} critical), "
+            f"{online_devices}/{total_devices} devices online"
         )
     except Exception as e:
         logger.error(f"Failed to generate status summary: {e}")

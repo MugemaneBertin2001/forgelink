@@ -1,7 +1,6 @@
 """Tests for GraphQL schema."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 from graphene.test import Client
 

@@ -2,7 +2,6 @@
 
 import json
 import pytest
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from apps.telemetry.kafka_consumer import TelemetryKafkaConsumer, TelemetryMessage

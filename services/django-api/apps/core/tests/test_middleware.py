@@ -1,8 +1,6 @@
 """Tests for core middleware."""
 
-import json
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from django.http import JsonResponse
@@ -197,7 +195,7 @@ class TestAuditMiddleware:
         request = request_factory.post("/health/", {})
 
         with patch("apps.audit.tasks.create_audit_log") as mock_audit:
-            response = middleware(request)
+            middleware(request)
             mock_audit.delay.assert_not_called()
 
     def test_post_request_creates_audit(self, request_factory, get_response):

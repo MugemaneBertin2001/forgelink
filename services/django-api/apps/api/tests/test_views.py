@@ -1,11 +1,9 @@
 """Tests for API views."""
 
-import hashlib
-import hmac
 import json
 import time
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from django.test import RequestFactory
 from rest_framework.test import APIClient
@@ -13,7 +11,6 @@ from rest_framework.test import APIClient
 from apps.api.views import (
     _acknowledge_alert_from_slack,
     _resolve_alert_from_slack,
-    slack_webhook,
     verify_slack_signature,
 )
 
