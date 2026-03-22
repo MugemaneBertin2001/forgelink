@@ -188,17 +188,70 @@ class TelemetryKafkaConsumer:
             return
 
         try:
-            insert_telemetry_batch(self.batch)
+            self._flush_with_retry(self.batch.copy())
             self.stats["batches_written"] += 1
             self.stats["messages_processed"] += len(self.batch)
             logger.debug(f"Flushed batch of {len(self.batch)} records to TDengine")
         except Exception as e:
-            logger.error(f"Failed to flush batch to TDengine: {e}")
+            logger.error(f"Failed to flush batch after retries: {e}")
             self.stats["errors"] += 1
-            # TODO: Implement retry logic or dead letter queue
+            self._send_to_dlq(self.batch.copy(), str(e))
         finally:
             self.batch = []
             self.last_flush_time = time.time()
+
+    def _flush_with_retry(
+        self, records: List[Dict[str, Any]], max_retries: int = 3
+    ) -> None:
+        """Flush batch with exponential backoff retry."""
+        last_exception = None
+        for attempt in range(max_retries):
+            try:
+                insert_telemetry_batch(records)
+                return
+            except Exception as e:
+                last_exception = e
+                wait_time = (2**attempt) * 0.5  # 0.5s, 1s, 2s
+                logger.warning(
+                    f"TDengine insert failed (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+        raise last_exception
+
+    def _send_to_dlq(self, records: List[Dict[str, Any]], error: str) -> None:
+        """Send failed records to dead letter queue via Kafka."""
+        from confluent_kafka import Producer
+
+        try:
+            producer = Producer({"bootstrap.servers": self.bootstrap_servers})
+
+            dlq_topic = "dlq.telemetry"
+            dlq_message = {
+                "records": records,
+                "error": error,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "consumer_group": self.group_id,
+                "record_count": len(records),
+            }
+
+            producer.produce(
+                dlq_topic,
+                value=json.dumps(dlq_message).encode("utf-8"),
+                callback=self._dlq_delivery_callback,
+            )
+            producer.flush(timeout=5)
+            logger.info(f"Sent {len(records)} failed records to DLQ: {dlq_topic}")
+            self.stats["dlq_messages"] = self.stats.get("dlq_messages", 0) + 1
+        except Exception as e:
+            logger.error(f"Failed to send to DLQ: {e}")
+
+    def _dlq_delivery_callback(self, err, msg):
+        """Callback for DLQ message delivery."""
+        if err:
+            logger.error(f"DLQ delivery failed: {err}")
+        else:
+            logger.debug(f"DLQ message delivered to {msg.topic()}")
 
     def should_flush(self) -> bool:
         """Check if batch should be flushed."""

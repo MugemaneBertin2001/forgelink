@@ -24,19 +24,28 @@ class HasPermission(BasePermission):
     """
     Check if user has a specific permission.
 
-    Usage:
+    Usage (as class attribute):
         class MyView(APIView):
             permission_classes = [HasPermission]
             required_permission = 'alerts.acknowledge'
+
+    Usage (as callable):
+        class MyView(APIView):
+            permission_classes = [HasPermission("alerts.acknowledge")]
     """
 
     message = "Permission denied."
+
+    def __init__(self, permission_code: str = None):
+        """Initialize with optional permission code."""
+        self.permission_code = permission_code
 
     def has_permission(self, request, view):
         if not hasattr(request, "user") or not request.user:
             return False
 
-        required = getattr(view, "required_permission", None)
+        # Use permission_code if provided, otherwise look at view attribute
+        required = self.permission_code or getattr(view, "required_permission", None)
         if not required:
             return True
 

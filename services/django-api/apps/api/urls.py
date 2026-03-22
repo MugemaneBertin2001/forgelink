@@ -15,4 +15,6 @@ urlpatterns = [
     path("assets/", include("apps.assets.urls")),
     # Alerts API
     path("alerts/", include("apps.alerts.urls")),
+    # Audit API
+    path("audit/", include("apps.audit.urls")),
 ]

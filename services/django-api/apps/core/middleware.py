@@ -194,6 +194,12 @@ class AuditMiddleware:
     """
 
     WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+    ACTION_MAP = {
+        "POST": "create",
+        "PUT": "update",
+        "PATCH": "update",
+        "DELETE": "delete",
+    }
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -203,8 +209,9 @@ class AuditMiddleware:
         if request.method not in self.WRITE_METHODS:
             return self.get_response(request)
 
-        # Skip health checks
-        if request.path in ["/health/", "/ready/"]:
+        # Skip health checks and metrics
+        skip_paths = ["/health/", "/ready/", "/metrics"]
+        if any(request.path.startswith(p) for p in skip_paths):
             return self.get_response(request)
 
         start_time = time.time()
@@ -222,16 +229,56 @@ class AuditMiddleware:
             from apps.audit.tasks import create_audit_log
 
             user_id = None
+            role_code = None
             if hasattr(request, "jwt_payload"):
-                user_id = request.jwt_payload.get("sub")
+                user_id = request.jwt_payload.get("sub") or request.jwt_payload.get(
+                    "email"
+                )
+                role_code = request.jwt_payload.get("role")
+
+            # Extract resource type and ID from path
+            resource_type, resource_id = self._parse_resource(request.path)
+
+            # Map HTTP method to action
+            action = self.ACTION_MAP.get(request.method, request.method.lower())
+
+            # Check for special actions
+            if "acknowledge" in request.path:
+                action = "acknowledge"
+            elif "resolve" in request.path:
+                action = "resolve"
 
             create_audit_log.delay(
                 user_id=user_id,
-                action=request.method,
+                role_code=role_code,
+                action=action,
                 resource=request.path,
-                ip_address=request.META.get("REMOTE_ADDR"),
+                resource_type=resource_type,
+                resource_id=resource_id,
+                method=request.method,
+                ip_address=self._get_client_ip(request),
+                user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
                 status_code=response.status_code,
                 duration_ms=int(duration * 1000),
             )
         except Exception as e:
             logger.warning(f"Failed to create audit log: {e}")
+
+    def _parse_resource(self, path: str) -> tuple:
+        """Extract resource type and ID from request path."""
+        parts = [p for p in path.strip("/").split("/") if p]
+
+        # Expected format: api/<resource>/<id>/... or api/<resource>/...
+        if len(parts) >= 2 and parts[0] == "api":
+            resource_type = parts[1].title().rstrip("s")  # alerts -> Alert
+            resource_id = parts[2] if len(parts) > 2 else None
+            return resource_type, resource_id
+
+        return None, None
+
+    def _get_client_ip(self, request) -> str:
+        """Get client IP, accounting for proxies."""
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR", "")
