@@ -217,7 +217,11 @@ class TestAuditMiddleware:
         """Test that audit includes user information."""
         middleware = AuditMiddleware(get_response)
         request = request_factory.post("/api/test/", {})
-        request.jwt_payload = {"sub": "user123", "email": "user@test.com", "role": "OPERATOR"}
+        request.jwt_payload = {
+            "sub": "user123",
+            "email": "user@test.com",
+            "role": "OPERATOR",
+        }
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         with patch("apps.audit.tasks.create_audit_log") as mock_audit:

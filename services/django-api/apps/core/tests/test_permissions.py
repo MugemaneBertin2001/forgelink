@@ -266,7 +266,9 @@ class TestAreaAccessPermission:
         permission = AreaAccessPermission()
         assert permission.has_object_permission(request, mock_view, obj) is True
 
-    def test_user_cannot_access_restricted_area(self, api_request, mock_view, mock_user):
+    def test_user_cannot_access_restricted_area(
+        self, api_request, mock_view, mock_user
+    ):
         """Test that users cannot access areas not in their allowed list."""
         mock_user.allowed_areas = ["melt-shop"]
 

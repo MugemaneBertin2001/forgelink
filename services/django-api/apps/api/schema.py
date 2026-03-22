@@ -390,9 +390,7 @@ class AssetQuery(graphene.ObjectType):
         is_active=graphene.Boolean(),
         limit=graphene.Int(default_value=100),
     )
-    device = graphene.Field(
-        DeviceGraphQLType, device_id=graphene.String(required=True)
-    )
+    device = graphene.Field(DeviceGraphQLType, device_id=graphene.String(required=True))
 
     def resolve_plants(self, info, is_active=None):
         qs = Plant.objects.all()
@@ -574,10 +572,14 @@ class AlertQuery(graphene.ObjectType):
             qs = qs.filter(device__cell__line__area__code=area_code)
 
         by_severity = dict(
-            qs.values("severity").annotate(count=Count("id")).values_list("severity", "count")
+            qs.values("severity")
+            .annotate(count=Count("id"))
+            .values_list("severity", "count")
         )
         by_status = dict(
-            qs.values("status").annotate(count=Count("id")).values_list("status", "count")
+            qs.values("status")
+            .annotate(count=Count("id"))
+            .values_list("status", "count")
         )
         active_count = qs.filter(status="active").count()
 

@@ -222,19 +222,22 @@ def init_tdengine_schema() -> bool:
 
     try:
         # Create database
-        client.execute(f"""
+        client.execute(
+            f"""
             CREATE DATABASE IF NOT EXISTS {database}
             KEEP 365
             DURATION 10
             BUFFER 256
             WAL_LEVEL 1
             CACHEMODEL 'last_row'
-        """)
+        """
+        )
 
         client.execute(f"USE {database}")
 
         # Telemetry supertable (raw sensor readings)
-        client.execute("""
+        client.execute(
+            """
             CREATE STABLE IF NOT EXISTS telemetry (
                 ts TIMESTAMP,
                 value DOUBLE,
@@ -249,10 +252,12 @@ def init_tdengine_schema() -> bool:
                 unit NCHAR(20),
                 device_type NCHAR(32)
             )
-        """)
+        """
+        )
 
         # Device status supertable
-        client.execute("""
+        client.execute(
+            """
             CREATE STABLE IF NOT EXISTS device_status (
                 ts TIMESTAMP,
                 online BOOL,
@@ -264,10 +269,12 @@ def init_tdengine_schema() -> bool:
                 plant NCHAR(32),
                 area NCHAR(32)
             )
-        """)
+        """
+        )
 
         # Events supertable (alarms, threshold breaches)
-        client.execute("""
+        client.execute(
+            """
             CREATE STABLE IF NOT EXISTS events (
                 ts TIMESTAMP,
                 event_type NCHAR(32),
@@ -283,10 +290,12 @@ def init_tdengine_schema() -> bool:
                 plant NCHAR(32),
                 area NCHAR(32)
             )
-        """)
+        """
+        )
 
         # 1-minute aggregates supertable
-        client.execute("""
+        client.execute(
+            """
             CREATE STABLE IF NOT EXISTS telemetry_1m (
                 ts TIMESTAMP,
                 avg_value DOUBLE,
@@ -299,10 +308,12 @@ def init_tdengine_schema() -> bool:
                 area NCHAR(32),
                 unit NCHAR(20)
             )
-        """)
+        """
+        )
 
         # 1-hour aggregates supertable
-        client.execute("""
+        client.execute(
+            """
             CREATE STABLE IF NOT EXISTS telemetry_1h (
                 ts TIMESTAMP,
                 avg_value DOUBLE,
@@ -316,10 +327,12 @@ def init_tdengine_schema() -> bool:
                 area NCHAR(32),
                 unit NCHAR(20)
             )
-        """)
+        """
+        )
 
         # 1-day aggregates supertable
-        client.execute("""
+        client.execute(
+            """
             CREATE STABLE IF NOT EXISTS telemetry_1d (
                 ts TIMESTAMP,
                 avg_value DOUBLE,
@@ -334,7 +347,8 @@ def init_tdengine_schema() -> bool:
                 area NCHAR(32),
                 unit NCHAR(20)
             )
-        """)
+        """
+        )
 
         logger.info("TDengine schema initialized successfully")
         return True
@@ -397,7 +411,8 @@ def insert_telemetry_batch(records: List[Dict[str, Any]]) -> int:
             quality = str(record.get("quality", "good")).replace("'", "''")
             device_id = str(record["device_id"]).replace("'", "''")
 
-            sql_parts.append(f"""
+            sql_parts.append(
+                f"""
                 {table_name} USING telemetry TAGS (
                     '{device_id}',
                     '{record.get('plant', '')}',
@@ -412,7 +427,8 @@ def insert_telemetry_batch(records: List[Dict[str, Any]]) -> int:
                     '{quality}',
                     {int(record.get('sequence', 0))}
                 )
-            """)
+            """
+            )
 
         # Execute batch insert
         sql = "INSERT INTO " + " ".join(sql_parts)

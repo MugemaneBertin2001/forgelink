@@ -122,6 +122,7 @@ class TestTDengineConnection:
     def test_tdengine_module_has_connection_function(self):
         """Test that tdengine module has connection capabilities."""
         from apps.telemetry import tdengine
+
         # Module should exist and have validation functions
         assert hasattr(tdengine, "validate_device_id")
 

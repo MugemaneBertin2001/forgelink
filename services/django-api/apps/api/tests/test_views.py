@@ -118,8 +118,10 @@ class TestSlackWebhook:
             ],
         }
 
-        with patch("apps.api.views.verify_slack_signature", return_value=True), \
-             patch("apps.api.views._acknowledge_alert_from_slack") as mock_ack:
+        with (
+            patch("apps.api.views.verify_slack_signature", return_value=True),
+            patch("apps.api.views._acknowledge_alert_from_slack") as mock_ack,
+        ):
             response = api_client.post(
                 "/api/webhooks/slack/",
                 data=data,
@@ -142,8 +144,10 @@ class TestSlackWebhook:
             ],
         }
 
-        with patch("apps.api.views.verify_slack_signature", return_value=True), \
-             patch("apps.api.views._resolve_alert_from_slack") as mock_resolve:
+        with (
+            patch("apps.api.views.verify_slack_signature", return_value=True),
+            patch("apps.api.views._resolve_alert_from_slack") as mock_resolve,
+        ):
             response = api_client.post(
                 "/api/webhooks/slack/",
                 data=data,

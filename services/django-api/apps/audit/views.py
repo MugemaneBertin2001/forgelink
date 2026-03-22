@@ -105,7 +105,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         user_id = request.query_params.get("user_id")
         if not user_id:
             return Response(
-                {"error": "user_id parameter required"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "user_id parameter required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         logs = self.get_queryset().filter(user_id__icontains=user_id)[:100]

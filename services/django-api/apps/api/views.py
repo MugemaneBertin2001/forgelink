@@ -213,9 +213,9 @@ def _send_active_alerts_summary(channel: str) -> None:
     from apps.alerts.models import Alert
 
     try:
-        alerts = Alert.objects.filter(status="active").select_related(
-            "device", "rule"
-        )[:10]
+        alerts = Alert.objects.filter(status="active").select_related("device", "rule")[
+            :10
+        ]
 
         logger.info(f"Active alerts summary requested for {channel}: {alerts.count()}")
     except Exception as e:

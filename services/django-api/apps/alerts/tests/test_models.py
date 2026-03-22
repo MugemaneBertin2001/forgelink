@@ -160,7 +160,9 @@ class TestAlertModel:
     def test_alert_indexes(self):
         """Test that model indexes are defined."""
         indexes = Alert._meta.indexes
-        assert len(indexes) == 3  # status/triggered_at, device/triggered_at, severity/status
+        assert (
+            len(indexes) == 3
+        )  # status/triggered_at, device/triggered_at, severity/status
 
 
 @pytest.mark.django_db

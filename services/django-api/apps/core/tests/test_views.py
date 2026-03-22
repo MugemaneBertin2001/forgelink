@@ -22,9 +22,11 @@ class TestReadinessCheck:
     @pytest.mark.django_db
     def test_readiness_check_all_healthy(self, client):
         """Test readiness check with healthy services."""
-        with patch("django.db.connection.cursor") as mock_cursor, \
-             patch("django.core.cache.cache") as mock_cache, \
-             patch("apps.telemetry.tdengine.get_tdengine_connection") as mock_td:
+        with (
+            patch("django.db.connection.cursor") as mock_cursor,
+            patch("django.core.cache.cache") as mock_cache,
+            patch("apps.telemetry.tdengine.get_tdengine_connection") as mock_td,
+        ):
             mock_cursor.return_value.__enter__ = MagicMock()
             mock_cursor.return_value.__exit__ = MagicMock()
             mock_cache.set.return_value = None

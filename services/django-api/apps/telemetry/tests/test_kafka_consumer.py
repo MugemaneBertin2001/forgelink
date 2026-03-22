@@ -143,7 +143,9 @@ class TestTelemetryKafkaConsumer:
         """Test flush with successful retry."""
         records = [{"device_id": "test", "value": 1.0}]
 
-        with patch("apps.telemetry.kafka_consumer.insert_telemetry_batch") as mock_insert:
+        with patch(
+            "apps.telemetry.kafka_consumer.insert_telemetry_batch"
+        ) as mock_insert:
             mock_insert.return_value = None
             consumer._flush_with_retry(records)
             mock_insert.assert_called_once_with(records)
@@ -152,7 +154,9 @@ class TestTelemetryKafkaConsumer:
         """Test flush with retry exhaustion."""
         records = [{"device_id": "test", "value": 1.0}]
 
-        with patch("apps.telemetry.kafka_consumer.insert_telemetry_batch") as mock_insert:
+        with patch(
+            "apps.telemetry.kafka_consumer.insert_telemetry_batch"
+        ) as mock_insert:
             mock_insert.side_effect = Exception("Connection failed")
 
             with pytest.raises(Exception):

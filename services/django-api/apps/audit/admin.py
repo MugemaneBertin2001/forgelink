@@ -50,7 +50,13 @@ class AuditLogAdmin(ModelAdmin):
         (
             "Action",
             {
-                "fields": ("action", "resource", "resource_type", "resource_id", "method"),
+                "fields": (
+                    "action",
+                    "resource",
+                    "resource_type",
+                    "resource_id",
+                    "method",
+                ),
             },
         ),
         (

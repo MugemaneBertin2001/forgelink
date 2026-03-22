@@ -23,7 +23,9 @@ class TestAlertRuleViewSet:
 
     def test_list_alert_rules(self, api_client, alert_rule):
         """Test listing alert rules."""
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_auth.return_value = (mock_user, None)
@@ -44,7 +46,9 @@ class TestAlertRuleViewSet:
             "severity": "high",
         }
 
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_auth.return_value = (mock_user, None)
@@ -60,7 +64,9 @@ class TestAlertViewSet:
 
     def test_list_alerts(self, api_client, alert):
         """Test listing alerts."""
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_auth.return_value = (mock_user, None)
@@ -89,7 +95,9 @@ class TestAlertViewSet:
             status="resolved",
         )
 
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_auth.return_value = (mock_user, None)
@@ -100,7 +108,9 @@ class TestAlertViewSet:
 
     def test_acknowledge_alert(self, api_client, alert):
         """Test acknowledging an alert."""
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_user.email = "test@forgelink.local"
@@ -119,7 +129,9 @@ class TestAlertViewSet:
         # First acknowledge
         alert.acknowledge("test@forgelink.local")
 
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_user.email = "test@forgelink.local"
@@ -148,7 +160,9 @@ class TestAlertViewSet:
 
         alert_ids = [str(a.id) for a in alerts]
 
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_user.email = "test@forgelink.local"
@@ -184,7 +198,9 @@ class TestAlertHistoryViewSet:
             duration_seconds=300,
         )
 
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_auth.return_value = (mock_user, None)
@@ -224,7 +240,9 @@ class TestAlertStatsEndpoint:
             status="acknowledged",
         )
 
-        with patch("apps.core.authentication.JWTAuthentication.authenticate") as mock_auth:
+        with patch(
+            "apps.core.authentication.JWTAuthentication.authenticate"
+        ) as mock_auth:
             mock_user = MagicMock()
             mock_user.has_permission.return_value = True
             mock_auth.return_value = (mock_user, None)

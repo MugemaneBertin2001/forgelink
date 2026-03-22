@@ -95,7 +95,12 @@ class TestAreaModel:
 
     def test_area_types(self, plant):
         """Test valid area types."""
-        for area_type in ["melt_shop", "continuous_casting", "rolling_mill", "finishing"]:
+        for area_type in [
+            "melt_shop",
+            "continuous_casting",
+            "rolling_mill",
+            "finishing",
+        ]:
             area = Area.objects.create(
                 plant=plant,
                 code=f"area-{area_type}",

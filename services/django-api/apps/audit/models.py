@@ -29,7 +29,11 @@ class AuditLog(models.Model):
 
     # User information
     user_id = models.CharField(
-        max_length=255, null=True, blank=True, db_index=True, help_text="User ID or email"
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="User ID or email",
     )
     role_code = models.CharField(
         max_length=100, null=True, blank=True, help_text="User role at time of action"
@@ -68,7 +72,9 @@ class AuditLog(models.Model):
     ip_address = models.GenericIPAddressField(
         null=True, blank=True, db_index=True, help_text="Client IP address"
     )
-    user_agent = models.TextField(null=True, blank=True, help_text="Client user agent string")
+    user_agent = models.TextField(
+        null=True, blank=True, help_text="Client user agent string"
+    )
 
     # Response information
     status_code = models.IntegerField(
@@ -80,7 +86,9 @@ class AuditLog(models.Model):
 
     # Additional context
     details = models.JSONField(
-        default=dict, blank=True, help_text="Additional structured details about the action"
+        default=dict,
+        blank=True,
+        help_text="Additional structured details about the action",
     )
 
     # Timestamps
@@ -210,12 +218,12 @@ class AuditSummary(models.Model):
                 "delete_count": logs.filter(action="delete").count(),
                 "alert_acknowledge_count": logs.filter(action="acknowledge").count(),
                 "alert_resolve_count": logs.filter(action="resolve").count(),
-                "avg_response_time_ms": logs.exclude(duration_ms__isnull=True).aggregate(
-                    avg=Avg("duration_ms")
-                )["avg"],
-                "max_response_time_ms": logs.exclude(duration_ms__isnull=True).aggregate(
-                    max=Max("duration_ms")
-                )["max"],
+                "avg_response_time_ms": logs.exclude(
+                    duration_ms__isnull=True
+                ).aggregate(avg=Avg("duration_ms"))["avg"],
+                "max_response_time_ms": logs.exclude(
+                    duration_ms__isnull=True
+                ).aggregate(max=Max("duration_ms"))["max"],
                 "top_resources": list(
                     logs.values("resource")
                     .annotate(count=Count("id"))

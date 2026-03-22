@@ -67,7 +67,9 @@ def generate_daily_summary(date_str: str = None):
             target_date = timezone.now().date() - timedelta(days=1)
 
         summary = AuditSummary.generate_for_date(target_date)
-        logger.info(f"Generated audit summary for {target_date}: {summary.total_requests} requests")
+        logger.info(
+            f"Generated audit summary for {target_date}: {summary.total_requests} requests"
+        )
         return str(summary.id)
     except Exception as e:
         logger.error(f"Failed to generate audit summary: {e}")

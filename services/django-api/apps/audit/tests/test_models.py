@@ -198,7 +198,9 @@ class TestAuditSummaryModel:
         AuditLog.objects.create(action="create", resource="/test/", status_code=201)
         AuditLog.objects.create(action="create", resource="/test/", status_code=201)
         AuditLog.objects.create(action="read", resource="/test/", status_code=200)
-        AuditLog.objects.create(action="acknowledge", resource="/test/", status_code=200)
+        AuditLog.objects.create(
+            action="acknowledge", resource="/test/", status_code=200
+        )
 
         summary = AuditSummary.generate_for_date(target_date)
 
