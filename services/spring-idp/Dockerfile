@@ -48,7 +48,6 @@ USER nonroot
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["java", "-cp", "app.jar", "org.springframework.boot.loader.tools.MainMethodRunner", "--spring.main.banner-mode=off", "health"]
+# Note: HEALTHCHECK not supported in distroless - use K8s probes instead
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

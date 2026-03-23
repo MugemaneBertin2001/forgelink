@@ -41,7 +41,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_root_password
-      POSTGRES_MULTIPLE_DATABASES: forgelink,idp,assets,alerts
+      POSTGRES_MULTIPLE_DATABASES: forgelink,idp
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -222,7 +222,7 @@ services:
     env_file:
       - .env
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings
+      DJANGO_SETTINGS_MODULE: apps.core.settings
     volumes:
       - ./services/django-api:/app
     networks:
@@ -258,50 +258,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Spring Asset Service
-  forgelink-asset-service:
+  # Spring Notification Service - Slack notifications
+  forgelink-notification-service:
     build:
-      context: ./services/spring-asset-service
+      context: ./services/spring-notification-service
       dockerfile: Dockerfile
-    container_name: forgelink-asset-service
-    hostname: forgelink-asset-service
-    ports:
-      - "8081:8081"
-    env_file:
-      - .env
-    networks:
-      - forgelink-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      forgelink-idp:
-        condition: service_started
-    restart: unless-stopped
-
-  # Spring Alert Service
-  forgelink-alert-service:
-    build:
-      context: ./services/spring-alert-service
-      dockerfile: Dockerfile
-    container_name: forgelink-alert-service
-    hostname: forgelink-alert-service
+    container_name: forgelink-notification-service
+    hostname: forgelink-notification-service
     ports:
       - "8082:8082"
     env_file:
       - .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-https://hooks.slack.com/services/xxx/xxx/xxx}
     networks:
       - forgelink-network
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      forgelink-idp:
-        condition: service_started
     restart: unless-stopped
 
   # MQTT Bridge - MQTT to Kafka
