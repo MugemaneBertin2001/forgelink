@@ -1,20 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import '../../../../core/auth/auth_service.dart';
 import '../../../../core/api/socket_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/config/router.dart';
+import '../../../../core/services/dashboard_service.dart';
+import '../../../../core/services/alerts_service.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(dashboardProvider.notifier).refresh();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final socketStatus = ref.watch(socketStatusProvider);
-    // Watch alert stream to trigger rebuilds on new alerts
-    ref.watch(alertStreamProvider);
+    final dashboardState = ref.watch(dashboardProvider);
+
+    // Listen to real-time alerts to refresh dashboard
+    ref.listen(alertStreamProvider, (prev, next) {
+      next.whenData((alert) {
+        ref.read(dashboardProvider.notifier).refresh();
+      });
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -23,44 +45,88 @@ class DashboardScreen extends ConsumerWidget {
           // Connection indicator
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Icon(
-              socketStatus == SocketStatus.connected
-                  ? Icons.cloud_done
-                  : Icons.cloud_off,
-              color: socketStatus == SocketStatus.connected
-                  ? Colors.green
-                  : Colors.grey,
+            child: Row(
+              children: [
+                Icon(
+                  socketStatus == SocketStatus.connected
+                      ? Icons.cloud_done
+                      : Icons.cloud_off,
+                  color: socketStatus == SocketStatus.connected
+                      ? Colors.green
+                      : Colors.grey,
+                  size: 20,
+                ),
+                if (dashboardState.lastUpdated != null) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    timeago.format(dashboardState.lastUpdated!),
+                    style: AppTypography.caption.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          // TODO: Refresh dashboard data
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Welcome card
-            _WelcomeCard(user: user),
-            const SizedBox(height: 16),
+      body: dashboardState.isLoading && dashboardState.summary.totalDevices == 0
+          ? const Center(child: CircularProgressIndicator())
+          : dashboardState.error != null && dashboardState.summary.totalDevices == 0
+              ? _ErrorView(
+                  error: dashboardState.error!,
+                  onRetry: () => ref.read(dashboardProvider.notifier).refresh(),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => ref.read(dashboardProvider.notifier).refresh(),
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      // Welcome card
+                      _WelcomeCard(user: user),
+                      const SizedBox(height: 16),
 
-            // Alert summary
-            _AlertSummaryCard(),
-            const SizedBox(height: 16),
+                      // Alert summary
+                      _AlertSummaryCard(summary: dashboardState.summary),
+                      const SizedBox(height: 16),
 
-            // Quick stats grid
-            _QuickStatsGrid(),
-            const SizedBox(height: 16),
+                      // Quick stats grid
+                      _QuickStatsGrid(summary: dashboardState.summary),
+                      const SizedBox(height: 16),
 
-            // Recent alerts
-            _RecentAlertsCard(),
-            const SizedBox(height: 16),
+                      // Recent alerts
+                      _RecentAlertsCard(alerts: dashboardState.summary.recentAlerts),
+                      const SizedBox(height: 16),
 
-            // Area overview
-            _AreaOverviewCard(),
-          ],
-        ),
+                      // Area overview
+                      _AreaOverviewCard(areaStatuses: dashboardState.summary.areaStatuses),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+
+  const _ErrorView({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: AppColors.critical.withOpacity(0.5)),
+          const SizedBox(height: 16),
+          Text(error, style: AppTypography.body2.copyWith(color: AppColors.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }
@@ -142,12 +208,22 @@ class _WelcomeCard extends StatelessWidget {
   }
 }
 
-class _AlertSummaryCard extends ConsumerWidget {
+class _AlertSummaryCard extends StatelessWidget {
+  final DashboardSummary summary;
+
+  const _AlertSummaryCard({required this.summary});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: Fetch from API
+  Widget build(BuildContext context) {
+    final hasAlerts = summary.activeAlerts > 0;
+    final color = summary.criticalAlerts > 0
+        ? AppColors.critical
+        : summary.highAlerts > 0
+            ? AppColors.warning
+            : AppColors.success;
+
     return Card(
-      color: AppColors.critical.withOpacity(0.1),
+      color: color.withOpacity(0.1),
       child: InkWell(
         onTap: () => context.go(AppRoutes.alerts),
         borderRadius: BorderRadius.circular(12),
@@ -158,11 +234,11 @@ class _AlertSummaryCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.critical,
+                  color: color,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.warning_amber_rounded,
+                child: Icon(
+                  hasAlerts ? Icons.warning_amber_rounded : Icons.check_circle_outline,
                   color: Colors.white,
                   size: 28,
                 ),
@@ -173,13 +249,15 @@ class _AlertSummaryCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '3 Active Alerts',
+                      hasAlerts ? '${summary.activeAlerts} Active Alerts' : 'All Systems Healthy',
                       style: AppTypography.subtitle1.copyWith(
-                        color: AppColors.critical,
+                        color: color,
                       ),
                     ),
                     Text(
-                      '1 critical, 2 high severity',
+                      hasAlerts
+                          ? _buildAlertSummaryText(summary)
+                          : 'No active alerts at this time',
                       style: AppTypography.body2.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -187,9 +265,9 @@ class _AlertSummaryCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: AppColors.critical,
+                color: color,
               ),
             ],
           ),
@@ -197,9 +275,28 @@ class _AlertSummaryCard extends ConsumerWidget {
       ),
     );
   }
+
+  String _buildAlertSummaryText(DashboardSummary summary) {
+    final parts = <String>[];
+    if (summary.criticalAlerts > 0) {
+      parts.add('${summary.criticalAlerts} critical');
+    }
+    if (summary.highAlerts > 0) {
+      parts.add('${summary.highAlerts} high');
+    }
+    final other = summary.activeAlerts - summary.criticalAlerts - summary.highAlerts;
+    if (other > 0) {
+      parts.add('$other other');
+    }
+    return parts.join(', ') + ' severity';
+  }
 }
 
 class _QuickStatsGrid extends StatelessWidget {
+  final DashboardSummary summary;
+
+  const _QuickStatsGrid({required this.summary});
+
   @override
   Widget build(BuildContext context) {
     return GridView.count(
@@ -212,29 +309,32 @@ class _QuickStatsGrid extends StatelessWidget {
       children: [
         _StatCard(
           title: 'Devices Online',
-          value: '65',
-          total: '68',
+          value: summary.onlineDevices.toString(),
+          total: summary.totalDevices.toString(),
           icon: Icons.sensors,
           color: AppColors.success,
         ),
         _StatCard(
-          title: 'Areas Active',
-          value: '4',
-          total: '4',
-          icon: Icons.location_on,
-          color: AppColors.primary,
+          title: 'Health Score',
+          value: '${summary.healthPercent.toStringAsFixed(0)}%',
+          icon: Icons.favorite,
+          color: summary.healthPercent >= 90
+              ? AppColors.success
+              : summary.healthPercent >= 70
+                  ? AppColors.warning
+                  : AppColors.critical,
         ),
         _StatCard(
-          title: 'Data Points/sec',
-          value: '1,240',
-          icon: Icons.speed,
-          color: AppColors.chartBlue,
+          title: 'Faults',
+          value: summary.faultDevices.toString(),
+          icon: Icons.error_outline,
+          color: summary.faultDevices > 0 ? AppColors.critical : AppColors.success,
         ),
         _StatCard(
-          title: 'Alerts Today',
-          value: '12',
+          title: 'Active Alerts',
+          value: summary.activeAlerts.toString(),
           icon: Icons.notifications,
-          color: AppColors.warning,
+          color: summary.activeAlerts > 0 ? AppColors.warning : AppColors.success,
         ),
       ],
     );
@@ -301,6 +401,10 @@ class _StatCard extends StatelessWidget {
 }
 
 class _RecentAlertsCard extends StatelessWidget {
+  final List<Alert> alerts;
+
+  const _RecentAlertsCard({required this.alerts});
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -321,25 +425,18 @@ class _RecentAlertsCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          // TODO: Fetch from API
-          _AlertListItem(
-            severity: 'critical',
-            message: 'EAF-1 temperature exceeds threshold',
-            device: 'temp-sensor-001',
-            time: '2 min ago',
-          ),
-          _AlertListItem(
-            severity: 'high',
-            message: 'Cooling water flow deviation',
-            device: 'flow-meter-003',
-            time: '15 min ago',
-          ),
-          _AlertListItem(
-            severity: 'high',
-            message: 'Motor vibration spike detected',
-            device: 'vib-sensor-007',
-            time: '32 min ago',
-          ),
+          if (alerts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  'No recent alerts',
+                  style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+            )
+          else
+            ...alerts.take(5).map((alert) => _AlertListItem(alert: alert)),
         ],
       ),
     );
@@ -347,26 +444,16 @@ class _RecentAlertsCard extends StatelessWidget {
 }
 
 class _AlertListItem extends StatelessWidget {
-  final String severity;
-  final String message;
-  final String device;
-  final String time;
+  final Alert alert;
 
-  const _AlertListItem({
-    required this.severity,
-    required this.message,
-    required this.device,
-    required this.time,
-  });
+  const _AlertListItem({required this.alert});
 
   @override
   Widget build(BuildContext context) {
-    final color = AppColors.severityColor(severity);
+    final color = AppColors.severityColor(alert.severity);
 
     return InkWell(
-      onTap: () {
-        // TODO: Navigate to alert detail
-      },
+      onTap: () => context.go(AppRoutes.alerts),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -385,13 +472,13 @@ class _AlertListItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    message,
+                    alert.message,
                     style: AppTypography.body2,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    '$device • $time',
+                    '${alert.deviceName.isNotEmpty ? alert.deviceName : alert.deviceId} • ${timeago.format(alert.triggeredAt)}',
                     style: AppTypography.caption.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -411,6 +498,10 @@ class _AlertListItem extends StatelessWidget {
 }
 
 class _AreaOverviewCard extends StatelessWidget {
+  final List<AreaStatus> areaStatuses;
+
+  const _AreaOverviewCard({required this.areaStatuses});
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -422,30 +513,18 @@ class _AreaOverviewCard extends StatelessWidget {
             child: Text('Area Status', style: AppTypography.subtitle1),
           ),
           const Divider(height: 1),
-          _AreaStatusItem(
-            name: 'Melt Shop',
-            devices: 18,
-            alerts: 1,
-            status: 'warning',
-          ),
-          _AreaStatusItem(
-            name: 'Continuous Casting',
-            devices: 15,
-            alerts: 0,
-            status: 'normal',
-          ),
-          _AreaStatusItem(
-            name: 'Rolling Mill',
-            devices: 22,
-            alerts: 2,
-            status: 'critical',
-          ),
-          _AreaStatusItem(
-            name: 'Finishing',
-            devices: 13,
-            alerts: 0,
-            status: 'normal',
-          ),
+          if (areaStatuses.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  'No area data available',
+                  style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+            )
+          else
+            ...areaStatuses.map((area) => _AreaStatusItem(area: area)),
         ],
       ),
     );
@@ -453,23 +532,15 @@ class _AreaOverviewCard extends StatelessWidget {
 }
 
 class _AreaStatusItem extends StatelessWidget {
-  final String name;
-  final int devices;
-  final int alerts;
-  final String status;
+  final AreaStatus area;
 
-  const _AreaStatusItem({
-    required this.name,
-    required this.devices,
-    required this.alerts,
-    required this.status,
-  });
+  const _AreaStatusItem({required this.area});
 
   @override
   Widget build(BuildContext context) {
-    final color = status == 'critical'
+    final color = area.faultDevices > 0
         ? AppColors.critical
-        : status == 'warning'
+        : area.offlineDevices > area.totalDevices / 2
             ? AppColors.warning
             : AppColors.success;
 
@@ -489,28 +560,39 @@ class _AreaStatusItem extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(name, style: AppTypography.body2),
-            ),
-            Text(
-              '$devices devices',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textSecondary,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(area.name, style: AppTypography.body2),
+                  Text(
+                    '${area.onlineDevices}/${area.totalDevices} online • ${area.statusLabel}',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            if (alerts > 0)
+            if (area.activeAlerts > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: AppColors.warning.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  '$alerts',
-                  style: AppTypography.caption.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber, size: 12, color: AppColors.warning),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${area.activeAlerts}',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(width: 8),

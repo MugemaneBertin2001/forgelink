@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/services/telemetry_service.dart';
+import '../../../../core/services/assets_service.dart';
 
 class TelemetryScreen extends ConsumerStatefulWidget {
-  const TelemetryScreen({super.key});
+  final String? initialDeviceId;
+
+  const TelemetryScreen({super.key, this.initialDeviceId});
 
   @override
   ConsumerState<TelemetryScreen> createState() => _TelemetryScreenState();
@@ -15,7 +19,49 @@ class _TelemetryScreenState extends ConsumerState<TelemetryScreen> {
   String? _selectedDevice;
 
   @override
+  void initState() {
+    super.initState();
+    _selectedDevice = widget.initialDeviceId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Fetch devices for selector
+      ref.read(assetsProvider.notifier).fetchDevices();
+      // If device pre-selected, fetch its data
+      if (_selectedDevice != null) {
+        _fetchDeviceData(_selectedDevice!);
+      }
+    });
+  }
+
+  void _fetchDeviceData(String deviceId) {
+    final hours = _timeRangeToHours(_selectedTimeRange);
+    ref.read(telemetryProvider.notifier).fetchDeviceData(deviceId, hours: hours);
+  }
+
+  int _timeRangeToHours(String range) {
+    switch (range) {
+      case '15m': return 1;
+      case '1h': return 1;
+      case '6h': return 6;
+      case '24h': return 24;
+      default: return 1;
+    }
+  }
+
+  String _timeRangeInterval(String range) {
+    switch (range) {
+      case '15m': return '1m';
+      case '1h': return '1m';
+      case '6h': return '5m';
+      case '24h': return '15m';
+      default: return '1m';
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final telemetryState = ref.watch(telemetryProvider);
+    final devices = ref.watch(devicesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Telemetry'),
@@ -24,6 +70,14 @@ class _TelemetryScreenState extends ConsumerState<TelemetryScreen> {
             initialValue: _selectedTimeRange,
             onSelected: (value) {
               setState(() => _selectedTimeRange = value);
+              if (_selectedDevice != null) {
+                final hours = _timeRangeToHours(value);
+                ref.read(telemetryProvider.notifier).fetchHistory(
+                  _selectedDevice!,
+                  interval: _timeRangeInterval(value),
+                  hours: hours,
+                );
+              }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: '15m', child: Text('Last 15 min')),
@@ -44,54 +98,111 @@ class _TelemetryScreenState extends ConsumerState<TelemetryScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          if (_selectedDevice != null) {
+            _fetchDeviceData(_selectedDevice!);
+          }
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Device selector
+            _DeviceSelector(
+              devices: devices,
+              selectedDevice: _selectedDevice,
+              onSelected: (device) {
+                setState(() => _selectedDevice = device);
+                if (device != null) {
+                  _fetchDeviceData(device);
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Loading state
+            if (telemetryState.isLoading && _selectedDevice != null)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (telemetryState.error != null && _selectedDevice != null)
+              _ErrorCard(
+                error: telemetryState.error!,
+                onRetry: () => _fetchDeviceData(_selectedDevice!),
+              )
+            else ...[
+              // Current value card
+              _CurrentValueCard(
+                deviceId: _selectedDevice,
+                latestValue: telemetryState.latestValue,
+              ),
+              const SizedBox(height: 16),
+
+              // Chart
+              _TelemetryChart(
+                deviceId: _selectedDevice,
+                history: telemetryState.history,
+                timeRange: _selectedTimeRange,
+              ),
+              const SizedBox(height: 16),
+
+              // Statistics
+              _StatisticsCard(
+                deviceId: _selectedDevice,
+                stats: telemetryState.stats,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+
+  const _ErrorCard({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.critical.withOpacity(0.1),
+      child: Padding(
         padding: const EdgeInsets.all(16),
-        children: [
-          // Device selector
-          _DeviceSelector(
-            selectedDevice: _selectedDevice,
-            onSelected: (device) => setState(() => _selectedDevice = device),
-          ),
-          const SizedBox(height: 16),
-
-          // Current value card
-          _CurrentValueCard(deviceId: _selectedDevice),
-          const SizedBox(height: 16),
-
-          // Chart
-          _TelemetryChart(
-            deviceId: _selectedDevice,
-            timeRange: _selectedTimeRange,
-          ),
-          const SizedBox(height: 16),
-
-          // Statistics
-          _StatisticsCard(deviceId: _selectedDevice),
-        ],
+        child: Column(
+          children: [
+            Icon(Icons.error_outline, color: AppColors.critical),
+            const SizedBox(height: 8),
+            Text(error, style: AppTypography.body2),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _DeviceSelector extends StatelessWidget {
+  final List<Device> devices;
   final String? selectedDevice;
   final Function(String?) onSelected;
 
   const _DeviceSelector({
+    required this.devices,
     required this.selectedDevice,
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Fetch from API
-    final devices = [
-      {'id': 'temp-sensor-001', 'name': 'EAF-1 Temperature', 'area': 'Melt Shop'},
-      {'id': 'temp-sensor-002', 'name': 'LRF-1 Temperature', 'area': 'Melt Shop'},
-      {'id': 'flow-meter-001', 'name': 'Cooling Flow', 'area': 'Casting'},
-      {'id': 'vib-sensor-007', 'name': 'Stand 6 Vibration', 'area': 'Rolling Mill'},
-    ];
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -104,14 +215,14 @@ class _DeviceSelector extends StatelessWidget {
           ),
           items: devices.map((device) {
             return DropdownMenuItem(
-              value: device['id'],
+              value: device.deviceId,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(device['name']!, style: AppTypography.body2),
+                  Text(device.name, style: AppTypography.body2),
                   Text(
-                    '${device['area']} • ${device['id']}',
+                    '${device.deviceType} • ${device.deviceId}',
                     style: AppTypography.caption.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -130,8 +241,9 @@ class _DeviceSelector extends StatelessWidget {
 
 class _CurrentValueCard extends StatelessWidget {
   final String? deviceId;
+  final DeviceLatestValue? latestValue;
 
-  const _CurrentValueCard({this.deviceId});
+  const _CurrentValueCard({this.deviceId, this.latestValue});
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +263,28 @@ class _CurrentValueCard extends StatelessWidget {
       );
     }
 
-    // TODO: Fetch from API
+    if (latestValue == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: Text(
+              'No data available',
+              style: AppTypography.body2.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final statusColor = latestValue!.status == 'normal'
+        ? AppColors.success
+        : latestValue!.status == 'warning'
+            ? AppColors.warning
+            : AppColors.critical;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -171,15 +304,15 @@ class _CurrentValueCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '1,642',
+                        latestValue!.value.toStringAsFixed(1),
                         style: AppTypography.headline1.copyWith(
-                          color: AppColors.primary,
+                          color: statusColor,
                         ),
                       ),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6, left: 4),
                         child: Text(
-                          '°C',
+                          latestValue!.unit,
                           style: AppTypography.body1.copyWith(
                             color: AppColors.textSecondary,
                           ),
@@ -193,19 +326,23 @@ class _CurrentValueCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.trending_up, color: AppColors.warning, size: 16),
-                    const SizedBox(width: 4),
-                    Text(
-                      '+2.3%',
-                      style: AppTypography.body2.copyWith(color: AppColors.warning),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    latestValue!.status.toUpperCase(),
+                    style: AppTypography.caption.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'vs 5 min ago',
+                  _formatTimestamp(latestValue!.timestamp),
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -217,22 +354,56 @@ class _CurrentValueCard extends StatelessWidget {
       ),
     );
   }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${diff.inHours}h ago';
+  }
 }
 
 class _TelemetryChart extends StatelessWidget {
   final String? deviceId;
+  final List<TelemetryPoint> history;
   final String timeRange;
 
-  const _TelemetryChart({this.deviceId, required this.timeRange});
+  const _TelemetryChart({
+    this.deviceId,
+    required this.history,
+    required this.timeRange,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (deviceId == null) return const SizedBox.shrink();
 
-    // TODO: Fetch from API
-    final spots = List.generate(20, (i) {
-      return FlSpot(i.toDouble(), 1620 + (i % 5) * 10 + (i * 2) % 20);
-    });
+    if (history.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: Text(
+              'No historical data available',
+              style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Convert history to chart spots
+    final spots = <FlSpot>[];
+    for (var i = 0; i < history.length; i++) {
+      spots.add(FlSpot(i.toDouble(), history[i].value));
+    }
+
+    // Calculate min/max for better chart display
+    final values = history.map((p) => p.value).toList();
+    final minValue = values.reduce((a, b) => a < b ? a : b);
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    final padding = (maxValue - minValue) * 0.1;
 
     return Card(
       child: Padding(
@@ -240,7 +411,16 @@ class _TelemetryChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Temperature History', style: AppTypography.subtitle1),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('History', style: AppTypography.subtitle1),
+                Text(
+                  '${history.length} points',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
@@ -249,7 +429,7 @@ class _TelemetryChart extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    horizontalInterval: 20,
+                    horizontalInterval: (maxValue - minValue) / 4,
                     getDrawingHorizontalLine: (value) => FlLine(
                       color: Colors.grey.shade200,
                       strokeWidth: 1,
@@ -261,7 +441,7 @@ class _TelemetryChart extends StatelessWidget {
                         showTitles: true,
                         reservedSize: 50,
                         getTitlesWidget: (value, meta) => Text(
-                          '${value.toInt()}°',
+                          value.toStringAsFixed(0),
                           style: AppTypography.caption,
                         ),
                       ),
@@ -269,10 +449,13 @@ class _TelemetryChart extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
+                        interval: (history.length / 5).ceilToDouble(),
                         getTitlesWidget: (value, meta) {
-                          if (value.toInt() % 5 != 0) return const Text('');
+                          final index = value.toInt();
+                          if (index < 0 || index >= history.length) return const Text('');
+                          final timestamp = history[index].timestamp;
                           return Text(
-                            '${value.toInt()}m',
+                            '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}',
                             style: AppTypography.caption,
                           );
                         },
@@ -294,18 +477,9 @@ class _TelemetryChart extends StatelessWidget {
                         color: AppColors.chartBlue.withOpacity(0.1),
                       ),
                     ),
-                    // Threshold line
-                    LineChartBarData(
-                      spots: List.generate(20, (i) => FlSpot(i.toDouble(), 1650)),
-                      isCurved: false,
-                      color: AppColors.warning,
-                      barWidth: 1,
-                      dotData: const FlDotData(show: false),
-                      dashArray: [5, 5],
-                    ),
                   ],
-                  minY: 1600,
-                  maxY: 1680,
+                  minY: minValue - padding,
+                  maxY: maxValue + padding,
                 ),
               ),
             ),
@@ -314,8 +488,6 @@ class _TelemetryChart extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _LegendItem(color: AppColors.chartBlue, label: 'Value'),
-                const SizedBox(width: 16),
-                _LegendItem(color: AppColors.warning, label: 'Threshold'),
               ],
             ),
           ],
@@ -349,28 +521,51 @@ class _LegendItem extends StatelessWidget {
 
 class _StatisticsCard extends StatelessWidget {
   final String? deviceId;
+  final DeviceStats? stats;
 
-  const _StatisticsCard({this.deviceId});
+  const _StatisticsCard({this.deviceId, this.stats});
 
   @override
   Widget build(BuildContext context) {
     if (deviceId == null) return const SizedBox.shrink();
 
-    // TODO: Fetch from API
+    if (stats == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: Text(
+              'No statistics available',
+              style: AppTypography.body2.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Statistics', style: AppTypography.subtitle1),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Statistics', style: AppTypography.subtitle1),
+                Text(
+                  '${stats!.count} samples',
+                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(child: _StatItem(label: 'Min', value: '1,605°C')),
-                Expanded(child: _StatItem(label: 'Max', value: '1,678°C')),
-                Expanded(child: _StatItem(label: 'Avg', value: '1,638°C')),
-                Expanded(child: _StatItem(label: 'Std Dev', value: '12.4')),
+                Expanded(child: _StatItem(label: 'Min', value: stats!.min.toStringAsFixed(1))),
+                Expanded(child: _StatItem(label: 'Max', value: stats!.max.toStringAsFixed(1))),
+                Expanded(child: _StatItem(label: 'Avg', value: stats!.avg.toStringAsFixed(1))),
+                Expanded(child: _StatItem(label: 'Std Dev', value: stats!.stddev.toStringAsFixed(2))),
               ],
             ),
           ],
