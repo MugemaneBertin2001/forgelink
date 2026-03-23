@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-django-api:
-    name: Build Django API
+    name: Build Django API (Multi-Arch)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,6 +20,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -46,6 +49,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./services/django-api
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -56,7 +60,7 @@ jobs:
             GIT_SHA=${{ github.sha }}
 
   build-spring-idp:
-    name: Build Spring IDP
+    name: Build Spring IDP (Multi-Arch)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,6 +79,9 @@ jobs:
       - name: Build JAR
         working-directory: services/spring-idp
         run: mvn package -DskipTests -B
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -101,6 +108,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./services/spring-idp
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -108,7 +116,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-spring-notification:
-    name: Build Spring Notification Service
+    name: Build Spring Notification (Multi-Arch)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -127,6 +135,9 @@ jobs:
       - name: Build JAR
         working-directory: services/spring-notification-service
         run: mvn package -DskipTests -B
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -153,6 +164,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./services/spring-notification-service
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -210,6 +222,9 @@ jobs:
 
       - name: Validate production overlay
         run: kustomize build k8s/overlays/production > /dev/null
+
+      - name: Validate demo overlay
+        run: kustomize build k8s/overlays/demo > /dev/null
 
       - name: Install kubeval
         run: |
