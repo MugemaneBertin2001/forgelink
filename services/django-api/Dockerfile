@@ -3,7 +3,7 @@
 # ============================================
 
 # -------------------- Base --------------------
-FROM python:3.12-slim as base
+FROM python:3.14-slim as base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -44,7 +44,7 @@ COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r requirements.txt
 
 # -------------------- Production --------------------
-FROM python:3.12-slim as production
+FROM python:3.14-slim as production
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
