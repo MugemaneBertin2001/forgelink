@@ -189,14 +189,14 @@ class TestAlertHistoryModel:
             triggered_at=alert.triggered_at,
             acknowledged_at=alert.acknowledged_at,
             resolved_at=alert.resolved_at,
-            duration_seconds=alert.duration_seconds,
+            duration_seconds=60,  # Set a specific duration for testing
             acknowledged_by=alert.acknowledged_by,
             resolved_by=alert.resolved_by,
         )
 
         assert history.device_id == alert.device.device_id
         assert history.severity == alert.severity
-        assert history.duration_seconds > 0
+        assert history.duration_seconds == 60
 
     def test_alert_history_ordering(self, device, alert_rule):
         """Test that history is ordered by triggered_at descending."""

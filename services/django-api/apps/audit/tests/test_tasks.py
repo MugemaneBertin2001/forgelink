@@ -60,13 +60,16 @@ class TestGenerateDailySummaryTask:
         """Test generating summary for yesterday."""
         yesterday = timezone.now().date() - timedelta(days=1)
 
-        # Create some logs for yesterday
+        # Create some logs for yesterday using update to set timestamp
         for i in range(5):
-            AuditLog.objects.create(
+            log = AuditLog.objects.create(
                 action="read",
                 resource="/api/test/",
                 status_code=200,
-                timestamp=timezone.now() - timedelta(days=1),
+            )
+            # Use update to bypass any default value issues
+            AuditLog.objects.filter(id=log.id).update(
+                timestamp=timezone.now() - timedelta(days=1)
             )
 
         generate_daily_summary()
