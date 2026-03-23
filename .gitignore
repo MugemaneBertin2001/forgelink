@@ -21,6 +21,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!services/flutter-app/lib/
 lib64/
 parts/
 sdist/
@@ -117,7 +118,8 @@ pubspec.lock
 # Flutter
 .flutter-plugins
 .flutter-plugins-dependencies
-*.lock
+# pubspec.lock should be committed for reproducible Flutter builds
+!services/flutter-app/pubspec.lock
 
 # Android
 **/android/.gradle/
