@@ -23,7 +23,7 @@ psycopg[binary]==3.2.1
 taospy==2.7.12
 
 # Async tasks
-celery[redis]==5.4.0
+celery[redis]==5.6.2
 django-celery-beat==2.9.0
 django-celery-results==2.5.1
 
