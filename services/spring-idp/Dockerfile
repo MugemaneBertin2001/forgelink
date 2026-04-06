@@ -3,7 +3,7 @@
 # ============================================
 
 # -------------------- Builder --------------------
-FROM eclipse-temurin:21-jdk-alpine as builder
+FROM eclipse-temurin:25-jdk-alpine as builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY src ./src
 RUN mvn package -DskipTests -B
 
 # -------------------- Development --------------------
-FROM eclipse-temurin:21-jdk-alpine as development
+FROM eclipse-temurin:25-jdk-alpine as development
 
 WORKDIR /app
 
