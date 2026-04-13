@@ -224,7 +224,9 @@ jobs:
         run: kustomize build k8s/overlays/production > /dev/null
 
       - name: Validate demo overlay
-        run: kustomize build k8s/overlays/demo > /dev/null
+        run: |
+          cp k8s/overlays/demo/secrets.example.yaml k8s/overlays/demo/secrets.yaml
+          kustomize build k8s/overlays/demo > /dev/null
 
       - name: Install kubeval
         run: |

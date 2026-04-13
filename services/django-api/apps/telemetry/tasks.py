@@ -17,12 +17,8 @@ from typing import Any, Dict, Optional
 
 from celery import shared_task
 
-from .tdengine import (
-    get_client as get_tdengine_client,
-    insert_event,
-    query_device_stats,
-    sanitize_identifier,
-)
+from .tdengine import get_client as get_tdengine_client
+from .tdengine import insert_event, query_device_stats, sanitize_identifier
 
 logger = logging.getLogger(__name__)
 
