@@ -211,14 +211,14 @@ patches:
       kind: Service
       name: forgelink-idp
 
-# Images - LOCAL TESTING (change back to GHCR for production)
+# Images - GHCR (multi-arch including ARM64 for Raspberry Pi)
 images:
   - name: forgelink-api
-    newName: forgelink-api
-    newTag: local
+    newName: ghcr.io/mugemanebertin2001/forgelink-api
+    newTag: main
   - name: forgelink-idp
-    newName: forgelink-idp
-    newTag: local
+    newName: ghcr.io/mugemanebertin2001/forgelink-idp
+    newTag: main
   - name: forgelink-notification
-    newName: forgelink-notification
-    newTag: local
+    newName: ghcr.io/mugemanebertin2001/forgelink-notification
+    newTag: main

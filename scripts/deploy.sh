@@ -223,13 +223,10 @@ generate_secrets() {
     JWT_PRIVATE=$(cat "$JWT_KEYS_DIR/jwt-private.pem")
     JWT_PUBLIC=$(cat "$JWT_KEYS_DIR/jwt-public.pem")
 
-    # Prompt for Slack webhook if not set
+    # Use placeholder if Slack webhook not provided via --slack-webhook or SLACK_WEBHOOK_URL env
     if [ -z "$SLACK_WEBHOOK" ]; then
-        warn "No Slack webhook URL provided"
-        read -p "Enter Slack webhook URL (or press Enter to skip): " SLACK_WEBHOOK
-        if [ -z "$SLACK_WEBHOOK" ]; then
-            SLACK_WEBHOOK="https://hooks.slack.com/services/PLACEHOLDER"
-        fi
+        warn "No Slack webhook URL provided (set SLACK_WEBHOOK_URL env or use --slack-webhook)"
+        SLACK_WEBHOOK="https://hooks.slack.com/services/PLACEHOLDER"
     fi
 
     # Create secrets file (strategic merge patch format for kustomize)
@@ -339,15 +336,14 @@ build_local_images() {
 
     # Use sed to replace GHCR images with local images
     if [ "$OS" = "Darwin" ]; then
-        # macOS sed requires empty string after -i
-        sed -i '' 's|newName: ghcr.io/mugemanebertin/forgelink-api|newName: forgelink-api|g' kustomization.yaml
-        sed -i '' 's|newName: ghcr.io/mugemanebertin/forgelink-idp|newName: forgelink-idp|g' kustomization.yaml
-        sed -i '' 's|newName: ghcr.io/mugemanebertin/forgelink-notification|newName: forgelink-notification|g' kustomization.yaml
+        sed -i '' 's|newName: ghcr.io/mugemanebertin2001/forgelink-api|newName: forgelink-api|g' kustomization.yaml
+        sed -i '' 's|newName: ghcr.io/mugemanebertin2001/forgelink-idp|newName: forgelink-idp|g' kustomization.yaml
+        sed -i '' 's|newName: ghcr.io/mugemanebertin2001/forgelink-notification|newName: forgelink-notification|g' kustomization.yaml
         sed -i '' 's|newTag: main|newTag: local|g' kustomization.yaml
     else
-        sed -i 's|newName: ghcr.io/mugemanebertin/forgelink-api|newName: forgelink-api|g' kustomization.yaml
-        sed -i 's|newName: ghcr.io/mugemanebertin/forgelink-idp|newName: forgelink-idp|g' kustomization.yaml
-        sed -i 's|newName: ghcr.io/mugemanebertin/forgelink-notification|newName: forgelink-notification|g' kustomization.yaml
+        sed -i 's|newName: ghcr.io/mugemanebertin2001/forgelink-api|newName: forgelink-api|g' kustomization.yaml
+        sed -i 's|newName: ghcr.io/mugemanebertin2001/forgelink-idp|newName: forgelink-idp|g' kustomization.yaml
+        sed -i 's|newName: ghcr.io/mugemanebertin2001/forgelink-notification|newName: forgelink-notification|g' kustomization.yaml
         sed -i 's|newTag: main|newTag: local|g' kustomization.yaml
     fi
 
@@ -390,6 +386,40 @@ install_argocd() {
 }
 
 #############################################################################
+# Wait for Pods
+#############################################################################
+wait_for_pods() {
+    log "Waiting for core services to be ready (this may take 3-5 minutes)..."
+
+    local TIMEOUT=300
+    local INTERVAL=10
+    local ELAPSED=0
+
+    while [ $ELAPSED -lt $TIMEOUT ]; do
+        READY=$(kubectl get pods -n forgelink --no-headers 2>/dev/null | grep -c "Running" || true)
+        TOTAL=$(kubectl get pods -n forgelink --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+        echo -e "  ${BLUE}[$ELAPSED/${TIMEOUT}s]${NC} Pods ready: $READY/$TOTAL"
+
+        # Check if core infra is up (postgresql, redis, kafka, emqx)
+        PG_READY=$(kubectl get pods -n forgelink -l app.kubernetes.io/name=postgresql --no-headers 2>/dev/null | grep "1/1" | grep -c "Running" || true)
+        REDIS_READY=$(kubectl get pods -n forgelink -l app.kubernetes.io/name=redis --no-headers 2>/dev/null | grep "1/1" | grep -c "Running" || true)
+        KAFKA_READY=$(kubectl get pods -n forgelink -l app.kubernetes.io/name=kafka --no-headers 2>/dev/null | grep "1/1" | grep -c "Running" || true)
+        API_READY=$(kubectl get pods -n forgelink -l app.kubernetes.io/name=forgelink-api --no-headers 2>/dev/null | grep "1/1" | grep -c "Running" || true)
+
+        if [ "$PG_READY" -ge 1 ] && [ "$REDIS_READY" -ge 1 ] && [ "$KAFKA_READY" -ge 1 ] && [ "$API_READY" -ge 1 ]; then
+            success "Core services are ready!"
+            return 0
+        fi
+
+        sleep $INTERVAL
+        ELAPSED=$((ELAPSED + INTERVAL))
+    done
+
+    warn "Timeout waiting for all pods. Check status with: kubectl get pods -n forgelink"
+}
+
+#############################################################################
 # Deploy ForgeLink
 #############################################################################
 deploy_forgelink() {
@@ -399,7 +429,7 @@ deploy_forgelink() {
     kubectl create namespace forgelink --dry-run=client -o yaml | kubectl apply -f -
 
     # Apply secrets directly (not via ArgoCD for security)
-    kubectl apply -f "$SECRETS_FILE"
+    kubectl apply -n forgelink -f "$SECRETS_FILE"
 
     # Apply the ArgoCD Application
     kubectl apply -f "$PROJECT_ROOT/k8s/argocd/base/forgelink-app.yaml"
@@ -423,13 +453,16 @@ deploy_forgelink_direct() {
     # Apply the namespace first
     kubectl create namespace forgelink --dry-run=client -o yaml | kubectl apply -f -
 
-    # Apply secrets
-    kubectl apply -f "$SECRETS_FILE"
+    # Apply secrets with namespace
+    kubectl apply -n forgelink -f "$SECRETS_FILE"
 
     # Apply via kustomize
     kubectl apply -k "$PROJECT_ROOT/k8s/overlays/demo"
 
     success "ForgeLink deployed"
+
+    # Wait for core services to be ready
+    wait_for_pods
 }
 
 #############################################################################
