@@ -28,6 +28,16 @@ spec:
                 secretKeyRef:
                   name: postgresql-secrets
                   key: POSTGRES_PASSWORD
+            - name: POSTGRES_FORGELINK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secrets
+                  key: POSTGRES_FORGELINK_PASSWORD
+            - name: POSTGRES_IDP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secrets
+                  key: POSTGRES_IDP_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
@@ -78,21 +88,34 @@ metadata:
   labels:
     app.kubernetes.io/name: postgresql
 data:
-  01-init-databases.sql: |
-    -- Create databases and users
-    CREATE DATABASE forgelink;
-    CREATE DATABASE idp;
+  01-init-databases.sh: |
+    #!/bin/bash
+    set -e
 
-    CREATE USER forgelink WITH ENCRYPTED PASSWORD 'forgelink_password';
-    CREATE USER idp WITH ENCRYPTED PASSWORD 'idp_password';
+    # Read passwords from environment (set via secrets)
+    FORGELINK_PASS="${POSTGRES_FORGELINK_PASSWORD:-forgelink_password}"
+    IDP_PASS="${POSTGRES_IDP_PASSWORD:-idp_password}"
 
-    GRANT ALL PRIVILEGES ON DATABASE forgelink TO forgelink;
-    GRANT ALL PRIVILEGES ON DATABASE idp TO idp;
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      -- Create databases
+      CREATE DATABASE forgelink;
+      CREATE DATABASE idp;
 
-    -- Connect to forgelink database and configure
-    \c forgelink
-    GRANT ALL ON SCHEMA public TO forgelink;
+      -- Create users with passwords from environment
+      CREATE USER forgelink WITH ENCRYPTED PASSWORD '$FORGELINK_PASS';
+      CREATE USER idp WITH ENCRYPTED PASSWORD '$IDP_PASS';
 
-    -- Connect to idp database and configure
-    \c idp
-    GRANT ALL ON SCHEMA public TO idp;
+      -- Grant privileges
+      GRANT ALL PRIVILEGES ON DATABASE forgelink TO forgelink;
+      GRANT ALL PRIVILEGES ON DATABASE idp TO idp;
+    EOSQL
+
+    # Configure forgelink database
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "forgelink" <<-EOSQL
+      GRANT ALL ON SCHEMA public TO forgelink;
+    EOSQL
+
+    # Configure idp database
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "idp" <<-EOSQL
+      GRANT ALL ON SCHEMA public TO idp;
+    EOSQL

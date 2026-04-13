@@ -27,8 +27,19 @@ spec:
             - containerPort: 6043
               name: adapter
           env:
+            # Use pod hostname for FQDN (StatefulSet provides stable hostnames)
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: TAOS_FQDN
-              value: "tdengine.forgelink.svc.cluster.local"
+              value: "$(POD_NAME).tdengine.$(POD_NAMESPACE).svc.cluster.local"
+            - name: TAOS_FIRST_EP
+              value: "$(POD_NAME).tdengine.$(POD_NAMESPACE).svc.cluster.local:6030"
           volumeMounts:
             - name: tdengine-data
               mountPath: /var/lib/taos
@@ -47,9 +58,8 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 10
           readinessProbe:
-            httpGet:
-              path: /rest/login/root/taosdata
-              port: 6041
+            tcpSocket:
+              port: 6030
             initialDelaySeconds: 30
             periodSeconds: 10
   volumeClaimTemplates:

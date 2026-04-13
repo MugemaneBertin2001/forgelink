@@ -6,10 +6,6 @@ namespace: forgelink
 resources:
   - ../../base
 
-# Replace base secrets with demo-specific values
-patches:
-  - path: secrets.yaml
-
 nameSuffix: ""
 
 labels:
@@ -17,8 +13,11 @@ labels:
       environment: demo
     includeSelectors: true
 
-# Demo-specific patches - single node, minimal resources for Raspberry Pi
+# Demo-specific patches - single node, minimal resources
 patches:
+  # Replace base secrets
+  - path: secrets.yaml
+
   # ============ REDUCE ALL REPLICAS TO 1 ============
   - patch: |-
       - op: replace
@@ -34,8 +33,7 @@ patches:
     target:
       kind: StatefulSet
 
-  # ============ REDUCE RESOURCE REQUESTS (Pi-friendly) ============
-  # PostgreSQL - minimal for demo
+  # ============ REDUCE RESOURCE REQUESTS ============
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -50,7 +48,6 @@ patches:
       kind: StatefulSet
       name: postgresql
 
-  # Redis - minimal
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -65,7 +62,6 @@ patches:
       kind: Deployment
       name: redis
 
-  # Kafka - reduced for Pi
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -80,7 +76,6 @@ patches:
       kind: StatefulSet
       name: kafka
 
-  # TDengine - reduced
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -95,7 +90,6 @@ patches:
       kind: StatefulSet
       name: tdengine
 
-  # EMQX - reduced
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -110,7 +104,6 @@ patches:
       kind: StatefulSet
       name: emqx
 
-  # ForgeLink API
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -125,7 +118,6 @@ patches:
       kind: Deployment
       name: forgelink-api
 
-  # ForgeLink IDP
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -140,7 +132,6 @@ patches:
       kind: Deployment
       name: forgelink-idp
 
-  # Notification Service
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -155,7 +146,20 @@ patches:
       kind: Deployment
       name: forgelink-notification
 
-  # Celery Worker
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+    target:
+      kind: Deployment
+      name: forgelink-celery-worker
+
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -165,27 +169,11 @@ patches:
             cpu: "50m"
           limits:
             memory: "256Mi"
-            cpu: "300m"
-    target:
-      kind: Deployment
-      name: forgelink-celery-worker
-
-  # Celery Beat
-  - patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/resources
-        value:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
+            cpu: "200m"
     target:
       kind: Deployment
       name: forgelink-celery-beat
 
-  # Kafka Consumer
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources
@@ -199,16 +187,6 @@ patches:
     target:
       kind: Deployment
       name: forgelink-kafka-consumer
-
-  # ============ DISABLE HPA (not needed for single node) ============
-  - patch: |-
-      $patch: delete
-      apiVersion: autoscaling/v2
-      kind: HorizontalPodAutoscaler
-      metadata:
-        name: forgelink-api-hpa
-    target:
-      kind: HorizontalPodAutoscaler
 
   # ============ USE NodePort for demo access ============
   - patch: |-
@@ -233,14 +211,14 @@ patches:
       kind: Service
       name: forgelink-idp
 
-# Use GHCR images (multi-arch including ARM64)
+# Images - LOCAL TESTING (change back to GHCR for production)
 images:
   - name: forgelink-api
-    newName: ghcr.io/mugemanebertin/forgelink-api
-    newTag: main
+    newName: forgelink-api
+    newTag: local
   - name: forgelink-idp
-    newName: ghcr.io/mugemanebertin/forgelink-idp
-    newTag: main
+    newName: forgelink-idp
+    newTag: local
   - name: forgelink-notification
-    newName: ghcr.io/mugemanebertin/forgelink-notification
-    newTag: main
+    newName: forgelink-notification
+    newTag: local

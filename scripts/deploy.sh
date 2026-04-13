@@ -336,10 +336,20 @@ build_local_images() {
 
     # Update kustomization to use local images
     cd "$PROJECT_ROOT/k8s/overlays/demo"
-    sed -i.bak 's|ghcr.io/mugemanebertin/forgelink-api:main|forgelink-api:local|g' kustomization.yaml
-    sed -i.bak 's|ghcr.io/mugemanebertin/forgelink-idp:main|forgelink-idp:local|g' kustomization.yaml
-    sed -i.bak 's|ghcr.io/mugemanebertin/forgelink-notification:main|forgelink-notification:local|g' kustomization.yaml
-    rm -f kustomization.yaml.bak
+
+    # Use sed to replace GHCR images with local images
+    if [ "$OS" = "Darwin" ]; then
+        # macOS sed requires empty string after -i
+        sed -i '' 's|newName: ghcr.io/mugemanebertin/forgelink-api|newName: forgelink-api|g' kustomization.yaml
+        sed -i '' 's|newName: ghcr.io/mugemanebertin/forgelink-idp|newName: forgelink-idp|g' kustomization.yaml
+        sed -i '' 's|newName: ghcr.io/mugemanebertin/forgelink-notification|newName: forgelink-notification|g' kustomization.yaml
+        sed -i '' 's|newTag: main|newTag: local|g' kustomization.yaml
+    else
+        sed -i 's|newName: ghcr.io/mugemanebertin/forgelink-api|newName: forgelink-api|g' kustomization.yaml
+        sed -i 's|newName: ghcr.io/mugemanebertin/forgelink-idp|newName: forgelink-idp|g' kustomization.yaml
+        sed -i 's|newName: ghcr.io/mugemanebertin/forgelink-notification|newName: forgelink-notification|g' kustomization.yaml
+        sed -i 's|newTag: main|newTag: local|g' kustomization.yaml
+    fi
 
     success "Local images built"
 }

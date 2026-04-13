@@ -9,8 +9,8 @@ data:
   FACTORY_TIMEZONE: "Africa/Kigali"
   FACTORY_PLANT: "steel-plant-kigali"
 
-  # Django settings
-  DJANGO_ALLOWED_HOSTS: "localhost,forgelink-api,forgelink-api.forgelink.svc.cluster.local"
+  # Django settings (allow all for K8s health probes)
+  DJANGO_ALLOWED_HOSTS: "*"
   DJANGO_CSRF_TRUSTED_ORIGINS: "https://forgelink.local"
   DJANGO_DEBUG: "false"
 
