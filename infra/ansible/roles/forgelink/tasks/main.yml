@@ -1,0 +1,34 @@
+---
+- name: Clone ForgeLink repository
+  ansible.builtin.git:
+    repo: "{{ forgelink_repo }}"
+    dest: "{{ forgelink_install_dir }}"
+    version: "{{ forgelink_branch }}"
+    force: true
+  become_user: "{{ ansible_user }}"
+
+- name: Make deploy script executable
+  ansible.builtin.file:
+    path: "{{ forgelink_install_dir }}/scripts/deploy.sh"
+    mode: "0755"
+
+- name: Run ForgeLink deployment
+  ansible.builtin.shell: |
+    export SLACK_WEBHOOK_URL="{{ slack_webhook_url }}"
+    export KUBECONFIG="/home/{{ ansible_user }}/.kube/config"
+    ./scripts/deploy.sh --skip-k3s
+  args:
+    chdir: "{{ forgelink_install_dir }}"
+  environment:
+    HOME: "/home/{{ ansible_user }}"
+    PATH: "/usr/local/bin:/usr/bin:/bin"
+  register: deploy_result
+  timeout: 600
+
+- name: Show deployment output
+  ansible.builtin.debug:
+    msg: "{{ deploy_result.stdout_lines[-20:] }}"
+  when: deploy_result.stdout_lines | length > 0
+
+- name: Verify deployment
+  ansible.builtin.include_tasks: verify.yml

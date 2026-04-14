@@ -1,0 +1,6 @@
+# ─── Home Lab Overrides ───────────────────────────────────────────────
+# Pi has limited RAM, no swap needed if 8GB model
+enable_swap: false
+
+# Relax firewall on local network (optional)
+# ufw_allowed_ports: inherited from all.yml

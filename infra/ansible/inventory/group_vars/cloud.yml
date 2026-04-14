@@ -1,0 +1,4 @@
+# ─── Cloud Overrides ──────────────────────────────────────────────────
+# Oracle free tier has 24GB RAM but swap adds safety margin
+enable_swap: true
+swap_size_mb: 4096

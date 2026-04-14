@@ -1,0 +1,29 @@
+# ─── OCI Credentials ─────────────────────────────────────────────────
+# Find these in OCI Console → Profile → API Keys
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaaxxxxxxxx"
+user_ocid        = "ocid1.user.oc1..aaaaaaaaxxxxxxxx"
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+
+# ─── Region ──────────────────────────────────────────────────────────
+# Free tier available in your home region only
+# Europe: eu-frankfurt-1, eu-amsterdam-1, uk-london-1
+region = "eu-frankfurt-1"
+
+# ─── Compartment ─────────────────────────────────────────────────────
+# Use root compartment or create one in OCI Console → Identity → Compartments
+compartment_ocid = "ocid1.compartment.oc1..aaaaaaaaxxxxxxxx"
+
+# ─── SSH Key ─────────────────────────────────────────────────────────
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+# ─── Instance (Free Tier Defaults) ──────────────────────────────────
+# instance_name       = "forgelink"
+# instance_shape      = "VM.Standard.A1.Flex"
+# instance_ocpus      = 4        # Max 4 free
+# instance_memory_gb  = 24       # Max 24 free
+# boot_volume_size_gb = 100      # Max 200 free
+
+# ─── Security ────────────────────────────────────────────────────────
+# Restrict SSH to your IP for better security:
+# admin_ssh_cidr = "YOUR.PUBLIC.IP/32"

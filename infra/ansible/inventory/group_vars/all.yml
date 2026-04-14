@@ -1,0 +1,21 @@
+# ─── ForgeLink Deployment Settings ────────────────────────────────────
+forgelink_repo: "https://github.com/MugemaneBertin2001/forgelink.git"
+forgelink_branch: "main"
+forgelink_install_dir: "/opt/forgelink"
+slack_webhook_url: ""
+
+# ─── System ──────────────────────────────────────────────────────────
+timezone: "Africa/Kigali"
+enable_swap: false
+swap_size_mb: 4096
+
+# ─── Firewall Ports ──────────────────────────────────────────────────
+ufw_allowed_ports:
+  - { port: 22, proto: tcp, comment: "SSH" }
+  - { port: 80, proto: tcp, comment: "HTTP" }
+  - { port: 443, proto: tcp, comment: "HTTPS" }
+  - { port: 30080, proto: tcp, comment: "ForgeLink API" }
+  - { port: 30081, proto: tcp, comment: "ForgeLink IDP" }
+  - { port: 30443, proto: tcp, comment: "ArgoCD" }
+  - { port: 1883, proto: tcp, comment: "MQTT" }
+  - { port: 6443, proto: tcp, comment: "k3s API" }

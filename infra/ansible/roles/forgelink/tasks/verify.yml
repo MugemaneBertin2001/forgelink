@@ -1,0 +1,80 @@
+---
+- name: Wait for ForgeLink API to be ready
+  ansible.builtin.command: kubectl get pods -n forgelink -l app.kubernetes.io/name=forgelink-api --no-headers
+  register: api_pods
+  until: "'Running' in api_pods.stdout and '1/1' in api_pods.stdout"
+  retries: 60
+  delay: 10
+  changed_when: false
+
+- name: Wait for PostgreSQL to be ready
+  ansible.builtin.command: kubectl get pods -n forgelink -l app.kubernetes.io/name=postgresql --no-headers
+  register: pg_pods
+  until: "'Running' in pg_pods.stdout and '1/1' in pg_pods.stdout"
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait for Kafka to be ready
+  ansible.builtin.command: kubectl get pods -n forgelink -l app.kubernetes.io/name=kafka --no-headers
+  register: kafka_pods
+  until: "'Running' in kafka_pods.stdout and '1/1' in kafka_pods.stdout"
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Get all pod status
+  ansible.builtin.command: kubectl get pods -n forgelink
+  register: all_pods
+  changed_when: false
+
+- name: Show pod status
+  ansible.builtin.debug:
+    msg: "{{ all_pods.stdout_lines }}"
+
+- name: Health check API endpoint
+  ansible.builtin.uri:
+    url: "http://localhost:30080/api/"
+    method: GET
+    status_code: [200, 301, 302, 400]
+    timeout: 10
+  register: api_health
+  retries: 5
+  delay: 10
+  ignore_errors: true
+
+- name: Get ArgoCD admin password
+  ansible.builtin.command: >
+    kubectl -n argocd get secret argocd-initial-admin-secret
+    -o jsonpath="{.data.password}"
+  register: argocd_password_b64
+  changed_when: false
+  ignore_errors: true
+
+- name: Decode ArgoCD password
+  ansible.builtin.set_fact:
+    argocd_password: "{{ argocd_password_b64.stdout | b64decode }}"
+  when: argocd_password_b64 is succeeded
+
+- name: Get server IP
+  ansible.builtin.set_fact:
+    server_ip: "{{ ansible_host }}"
+
+- name: Display access information
+  ansible.builtin.debug:
+    msg:
+      - "╔═══════════════════════════════════════════════════════════╗"
+      - "║           ForgeLink Deployment Complete!                  ║"
+      - "╚═══════════════════════════════════════════════════════════╝"
+      - ""
+      - "  ForgeLink API:  http://{{ server_ip }}:30080"
+      - "  ForgeLink IDP:  http://{{ server_ip }}:30081"
+      - "  ArgoCD:         https://{{ server_ip }}:30443"
+      - ""
+      - "  Demo Login:"
+      - "    Email:    admin@forgelink.local"
+      - "    Password: Admin@ForgeLink2026!"
+      - ""
+      - "  ArgoCD Login:"
+      - "    Username: admin"
+      - "    Password: {{ argocd_password | default('check with: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath={.data.password} | base64 -d') }}"

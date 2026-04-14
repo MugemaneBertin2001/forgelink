@@ -1,0 +1,14 @@
+---
+# Redeploy ForgeLink only (skip system setup, hardening, k3s)
+#
+# Usage:
+#   ansible-playbook playbooks/deploy.yml
+#   ansible-playbook playbooks/deploy.yml --limit cloud
+
+- name: Redeploy ForgeLink
+  hosts: forgelink
+  become: true
+
+  roles:
+    - role: forgelink
+      tags: [forgelink, deploy]

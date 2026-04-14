@@ -1,0 +1,65 @@
+---
+- name: Check if k3s is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Install k3s
+  when: not k3s_binary.stat.exists
+  block:
+    - name: Download and install k3s
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh -s - \
+          --write-kubeconfig-mode 644 \
+          --disable traefik \
+          --disable servicelb
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s to start
+      ansible.builtin.wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        timeout: 120
+
+- name: Ensure k3s is running
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: true
+
+- name: Wait for k3s node to be Ready
+  ansible.builtin.command: kubectl get nodes --no-headers
+  register: k3s_nodes
+  until: "'Ready' in k3s_nodes.stdout"
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Set up kubeconfig for deploy user
+  block:
+    - name: Create .kube directory
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+
+    - name: Copy kubeconfig
+      ansible.builtin.copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        remote_src: true
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+
+- name: Verify k3s installation
+  ansible.builtin.command: kubectl get nodes
+  become_user: "{{ ansible_user }}"
+  register: k3s_verify
+  changed_when: false
+
+- name: Show k3s status
+  ansible.builtin.debug:
+    msg: "{{ k3s_verify.stdout_lines }}"

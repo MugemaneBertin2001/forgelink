@@ -1,0 +1,14 @@
+---
+# Run security hardening only
+#
+# Usage:
+#   ansible-playbook playbooks/harden.yml
+#   ansible-playbook playbooks/harden.yml --limit cloud
+
+- name: Harden ForgeLink servers
+  hosts: forgelink
+  become: true
+
+  roles:
+    - role: hardening
+      tags: [hardening, security]

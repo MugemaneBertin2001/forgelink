@@ -1,0 +1,33 @@
+---
+# Full deployment: system setup + hardening + k3s + ForgeLink
+#
+# Usage:
+#   Deploy everywhere:    ansible-playbook playbooks/site.yml
+#   Deploy to Pi only:    ansible-playbook playbooks/site.yml --limit homelab
+#   Deploy to cloud only: ansible-playbook playbooks/site.yml --limit cloud
+#   Deploy to one host:   ansible-playbook playbooks/site.yml --limit pi
+
+- name: Deploy ForgeLink Industrial IoT Platform
+  hosts: forgelink
+  become: true
+
+  pre_tasks:
+    - name: Verify connectivity
+      ansible.builtin.ping:
+
+    - name: Show target info
+      ansible.builtin.debug:
+        msg: "Deploying to {{ inventory_hostname }} ({{ ansible_host }}) in group {{ group_names | join(', ') }}"
+
+  roles:
+    - role: common
+      tags: [common, setup]
+
+    - role: hardening
+      tags: [hardening, security]
+
+    - role: k3s
+      tags: [k3s, kubernetes]
+
+    - role: forgelink
+      tags: [forgelink, deploy]
