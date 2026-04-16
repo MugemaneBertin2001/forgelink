@@ -1,5 +1,11 @@
 # ForgeLink
 
+![Version](https://img.shields.io/badge/version-v1.0.0-blue) ![License](https://img.shields.io/badge/license-Proprietary-red) ![Demo](https://img.shields.io/badge/demo-Coming%20Soon-yellow)
+
+![Django](https://img.shields.io/badge/Django-5.1-092E20?logo=django&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white) ![Flutter](https://img.shields.io/badge/Flutter-3.24-02569B?logo=flutter&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white) ![Kafka](https://img.shields.io/badge/Kafka-KRaft-231F20?logo=apachekafka&logoColor=white) ![TDengine](https://img.shields.io/badge/TDengine-3.x-0076D6) ![EMQX](https://img.shields.io/badge/EMQX-MQTT%205.0-7B61FF)
+
+![Kubernetes](https://img.shields.io/badge/Kubernetes-k3s-326CE5?logo=kubernetes&logoColor=white) ![ArgoCD](https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?logo=argo&logoColor=white) ![Terraform](https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform&logoColor=white) ![Ansible](https://img.shields.io/badge/Ansible-Automation-EE0000?logo=ansible&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-Multi--Arch-2496ED?logo=docker&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+
 **Industrial IoT Platform for Steel Manufacturing**
 
 ForgeLink is a production-grade, zero-trust IoT platform designed for steel factories. It monitors and controls equipment across the entire steelmaking process — from electric arc furnaces to finished rolled products.
@@ -9,7 +15,6 @@ ForgeLink is a production-grade, zero-trust IoT platform designed for steel fact
 ## Features
 
 - **Real-time Telemetry** — Sub-second data from 68+ sensors across the plant
-- **Predictive Maintenance** — AI-powered anomaly detection and failure prediction
 - **Alert Management** — Multi-channel notifications (mobile, Slack, email)
 - **Asset Registry** — Complete equipment hierarchy following ISA-95
 - **Mobile App** — Flutter-based cross-platform monitoring
@@ -75,7 +80,7 @@ ForgeLink is a production-grade, zero-trust IoT platform designed for steel fact
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/forgelink.git
+git clone https://github.com/MugemaneBertin2001/forgelink.git
 cd forgelink
 
 # Copy environment variables
@@ -147,9 +152,24 @@ forgelink/
 
 ---
 
+## Roadmap
+
+- Predictive maintenance — AI-powered anomaly detection and failure prediction (in development)
+- Oracle Cloud deployment with public live demo
+- Raspberry Pi home lab cluster deployment
+- TDengine community partnership integration
+
+---
+
+## Contact & Consulting
+
+ForgeLink is developed and maintained by **Mugemane Bertin**, a Kigali-based IIoT engineer specializing in industrial data infrastructure. For consulting inquiries, integration partnerships, or deployment support — especially for AVEVA PI migration, TDengine architecture, and ISA-95 UNS implementation — reach out via [GitHub](https://github.com/MugemaneBertin2001) or [LinkedIn](https://linkedin.com/in/mugemane-bertin-15a383237).
+
+---
+
 ## License
 
-Proprietary — All rights reserved.
+Proprietary — © 2026 Mugemane Bertin. All rights reserved. Viewing and evaluation permitted. Redistribution, modification, or commercial use without explicit written permission is prohibited.
 
 ---
 
