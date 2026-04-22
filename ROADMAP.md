@@ -32,7 +32,7 @@ The theme: convert deployed-but-not-wired infrastructure into operable systems. 
 
 - **mTLS service-to-service.** Real mTLS requires SPIRE workload consumption in every service — multi-week effort across three runtimes (Python, Java, Dart).
 - **OTel distributed tracing.** Instrumentation in Django + Spring + Flutter is real work; Jaeger receives nothing today and will keep receiving nothing through v1.1.0.
-- **Loki log aggregation.** No scaffolding, no urgency.
+- **Loki log aggregation.** No scaffolding and no v1.1.0 dependency on it. Revisit as part of the v1.2.0 observability expansion (alongside OTel tracing). Dropped from the README observability row in the same commit that recorded this decision (2026-04-22), so the README no longer overstates what ships.
 - **HashiCorp Vault.** Likely replaced with External Secrets Operator rather than built. Needs a design decision first.
 - **Django `ai/` app (predictive maintenance).** README claim already removed. Bring back when there's real ML, not a scaffolded app.
 - **MinIO integration.** Ship when a feature needs it (AI models, backup export).

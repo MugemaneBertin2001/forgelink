@@ -137,7 +137,7 @@ forgelink/
 | API | Django 5.1 + Graphene |
 | Services | Spring Boot 3.3 |
 | Mobile | Flutter 3.19+ |
-| Observability | Prometheus, Grafana, Loki, Jaeger |
+| Observability | Prometheus, Grafana, Jaeger |
 
 ---
 
