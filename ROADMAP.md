@@ -9,6 +9,15 @@
 
 Tagged releases are coherent increments, not arbitrary cutoffs. Each release is scoped around a theme that answers one question: *what did this cycle make operable or demonstrable that wasn't before?* Items that don't fit the theme are publicly deferred rather than silently dropped — deferred scope is a first-class decision, documented so the next cycle starts from evidence instead of reconstruction. Every release cycle produces a retrospective in `docs/_meta/` and updates this file in the commit that opens the next cycle.
 
+### Evidence-based release gating (standing principle)
+
+Every release is gated on demonstrable evidence, not calendar time. A release tag must not cut if every claim in that release's definition of done cannot be backed by a running URL, a logged artefact, or a running test. This principle applies to v1.1.0, v2.0.0, and every release after.
+
+Operationally, this means:
+- Each release's "must-ship" list carries explicit exit criteria that can be checked by running a command or visiting a URL.
+- A release is held rather than shipped with softened claims. Schedule slips are preferable to scope-slips-disguised-as-schedule-hits.
+- The retrospective for a release reports what was verified, not what was planned. If an item slipped, the retrospective names it; the release notes do not claim it.
+
 **As of 2026-04-22, the overall trajectory is governed by [`docs/_meta/v2.0.0-productization-plan.md`](docs/_meta/v2.0.0-productization-plan.md).** That plan takes ForgeLink from scaffold-with-honest-labels (v1.0.0) to fully productized consulting credibility substrate (v2.0.0) across four six-week milestones (M1–M4). v1.1.0 is the M1 public checkpoint; v2.0.0 is the M4 release.
 
 ## v1.1.0 — "Live" (target 2026-06-03)
