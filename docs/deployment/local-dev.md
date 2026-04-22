@@ -14,7 +14,7 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/forgelink.git
+git clone https://github.com/MugemaneBertin2001/forgelink.git
 cd forgelink
 ```
 

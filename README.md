@@ -14,11 +14,11 @@ ForgeLink is a production-grade, zero-trust IoT platform designed for steel fact
 
 ## Features
 
-- **Real-time Telemetry** — Sub-second data from 68+ sensors across the plant
-- **Alert Management** — Multi-channel notifications (mobile, Slack, email)
+- **Real-time Telemetry** — Sub-second data from 44+ sensors (temperature, pressure, vibration, flow, level) plus 6 PLCs and 10 VFDs across the plant
+- **Alert Management** — Multi-channel notifications (mobile push and Slack; email on roadmap)
 - **Asset Registry** — Complete equipment hierarchy following ISA-95
 - **Mobile App** — Flutter-based cross-platform monitoring
-- **Zero Trust Security** — mTLS, JWT, SPIFFE/SPIRE throughout
+- **Zero Trust Security** — JWT (RS256) at the API edge, SPIFFE/SPIRE workload identity deployed, mTLS for service-to-service as target state. See [docs/architecture/zero-trust.md](docs/architecture/zero-trust.md) for scope.
 
 ---
 
