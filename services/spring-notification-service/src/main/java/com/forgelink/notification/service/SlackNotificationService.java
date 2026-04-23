@@ -45,31 +45,31 @@ public class SlackNotificationService {
             .build();
     }
 
-    public void sendAlert(AlertEvent event) {
-        try {
-            String payload = buildSlackPayload(event);
+    public void sendAlert(AlertEvent event) throws Exception {
+        String payload = buildSlackPayload(event);
 
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(webhookUrl))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .timeout(Duration.ofSeconds(30))
-                .build();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(webhookUrl))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .timeout(Duration.ofSeconds(30))
+            .build();
 
-            HttpResponse<String> response = httpClient.send(request,
-                HttpResponse.BodyHandlers.ofString());
+        // Any exception propagates to the Kafka consumer so the message is
+        // NOT acked — letting the broker redeliver rather than silently
+        // dropping the alert (review finding #5).
+        HttpResponse<String> response = httpClient.send(request,
+            HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200) {
-                log.info("Slack notification sent: alertId={}, device={}",
-                    event.getAlertId(), event.getDeviceId());
-            } else {
-                log.error("Slack webhook error: status={}, body={}",
-                    response.statusCode(), response.body());
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to send Slack notification: {}", e.getMessage(), e);
+        if (response.statusCode() != 200) {
+            throw new RuntimeException(String.format(
+                "Slack webhook returned non-200 (status=%d, body=%s)",
+                response.statusCode(), response.body()
+            ));
         }
+
+        log.info("Slack notification sent: alertId={}, device={}",
+            event.getAlertId(), event.getDeviceId());
     }
 
     private String buildSlackPayload(AlertEvent event) throws Exception {

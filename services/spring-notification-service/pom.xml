@@ -38,6 +38,12 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Mail (for the email notification channel) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Observability -->
         <dependency>
             <groupId>io.micrometer</groupId>

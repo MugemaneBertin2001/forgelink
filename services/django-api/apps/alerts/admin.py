@@ -49,7 +49,15 @@ class AlertRuleAdmin(ModelAdmin):
         ),
         (
             "Notifications",
-            {"fields": ("notify_slack", "slack_channel", "cooldown_minutes")},
+            {
+                "fields": (
+                    "notify_slack",
+                    "slack_channel",
+                    "notify_email",
+                    "email_recipients",
+                    "cooldown_minutes",
+                )
+            },
         ),
         ("Status", {"fields": ("is_active",)}),
         (

@@ -154,9 +154,12 @@ class AlertService:
 
             logger.info(f"Alert triggered: {alert.id} - {message}")
 
-            # Send to Slack via Kafka
-            if rule.notify_slack:
-                AlertService.send_to_slack(alert, rule.slack_channel)
+            # Dispatch notification via Kafka whenever the rule opts into any
+            # channel. A single Kafka message carries both the Slack and
+            # email routing flags, and the Spring notification consumer
+            # fans out to the configured channels.
+            if rule.notify_slack or rule.notify_email:
+                AlertService.send_notification_event(alert, rule)
 
             # Broadcast via Socket.IO for in-app notifications
             AlertService.broadcast_new_alert(alert)
@@ -166,13 +169,19 @@ class AlertService:
         return None
 
     @staticmethod
-    def send_to_slack(alert: Alert, channel: str = "#forgelink-alerts"):
+    def send_notification_event(alert: Alert, rule: AlertRule):
         """
-        Publish alert to Kafka for Slack notification.
+        Publish an alert notification event to Kafka with both Slack and
+        email channel routing flags; the Spring consumer dispatches to
+        whichever channels the rule opted into.
         """
         try:
             device = alert.device
             area = device.cell.line.area
+
+            email_recipients = [
+                r.strip() for r in (rule.email_recipients or "").split(",") if r.strip()
+            ]
 
             event = {
                 "alertId": str(alert.id),
@@ -187,7 +196,11 @@ class AlertService:
                 "threshold": alert.threshold,
                 "unit": alert.unit,
                 "timestamp": alert.triggered_at.isoformat(),
-                "slackChannel": channel,
+                # Per-channel routing flags — mirror AlertRule columns.
+                "notifySlack": rule.notify_slack,
+                "slackChannel": rule.slack_channel,
+                "notifyEmail": rule.notify_email,
+                "emailRecipients": email_recipients,
             }
 
             producer = AlertService.get_kafka_producer()
@@ -199,9 +212,16 @@ class AlertService:
             )
             producer.poll(0)  # Trigger callbacks
 
-            alert.notified_slack = True
+            alert.notified_slack = rule.notify_slack
+            alert.notified_email = rule.notify_email
             alert.notified_at = dj_timezone.now()
-            alert.save(update_fields=["notified_slack", "notified_at"])
+            alert.save(
+                update_fields=[
+                    "notified_slack",
+                    "notified_email",
+                    "notified_at",
+                ]
+            )
 
             logger.info(f"Alert sent to Kafka: {alert.id}")
 
