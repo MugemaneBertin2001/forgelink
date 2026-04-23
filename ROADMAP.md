@@ -26,14 +26,14 @@ The theme: public demo URL reachable, end-to-end data flow visible, honest scope
 
 ### Must-ship (all items demo-visible)
 
-1. **Delete list executed.** Removes `slack-bot/`, empty `apps/ai/`, vestigial `mobile/flutter-app/`, MinIO and RabbitMQ from compose, all SPIRE manifests, Vault references. See productization plan § 8.
+1. **Scaffold-label reconciliation.** Per framing A (productization plan § 1), no scaffolds are deleted. `slack-bot/`, `apps/ai/`, `mobile/flutter-app/`, MinIO, RabbitMQ, SPIRE manifests, `k8s/argocd/`, and Vault references all remain in the repo and are labelled *planned* with a release target in docs. See productization plan § 8.
 2. **NetworkPolicy allow-list.** 8+ policies per service tier, Calico CNI on k3s, `scripts/test-networkpolicy.sh` verifies allow + deny matrix.
 3. **cert-manager + Let's Encrypt.** `https://forgelink.mugemanebertin.com` serves a real LE cert with auto-renewal.
 4. **Observability in k8s.** Prometheus + Grafana deployed; `django-prometheus` + Spring Actuator exposing metrics; one committed dashboard showing telemetry ingest rate, alert rate, API p95.
 5. **OCI Always Free live deploy.** Demo URL reachable 24/7; three seeded demo accounts (viewer / operator / admin); nightly reset CronJob keeps the demo clean.
 6. **Mobile APK public download.** Signed APK in GitHub Releases, QR code in README, sideload guide.
 7. **Simulator hardened for continuous operation.** Runs 30+ days without manual intervention; backoff-and-retry on transient disconnects.
-8. **Docs rewritten to match running reality.** README + zero-trust.md + overview.md reflect the post-delete-list state; no SPIRE claim; no RabbitMQ/MinIO/Vault mentions.
+8. **Docs rewritten to match running reality.** README + zero-trust.md + overview.md describe the wired surface in present tense; scaffolded subsystems (SPIRE, MinIO, RabbitMQ, `apps/ai/`, `slack-bot/`, Vault) remain visible in docs under *planned* labels with named release targets.
 
 ### Exit criteria (v1.1.0 does not tag until all are true)
 
@@ -53,7 +53,7 @@ The theme: every claim in the README is backed by running behavior a reviewer ca
 3. **Email notification channel.** Alert rule with `notify_email=true` dispatches SMTP within 30s to a public demo inbox.
 4. **Performance characterization.** `docs/performance/v2.0.0-characterization.md` reports measured numbers from a week of live demo traffic (telemetry ingest, alert latency, API p95).
 5. **Runbooks.** 5 runbooks, each tested by running it against the demo.
-6. **ADRs.** 5 ADRs covering the major architectural decisions + the SPIRE-delete + scope-cut calls.
+6. **ADRs.** 5 ADRs covering the major architectural decisions, including ADR-004 (cert-manager internal PKI as the v2.0.0 mTLS path with SPIRE retained as planned substrate) and ADR-005 (framing A — scaffold-as-first-class architecture, retention rationale per scaffold).
 7. **Demo guide + external review pass.** 3 external reviewers confirm the 10-minute reviewer journey completes successfully.
 8. **Docs in present tense.** Every feature-describing doc describes running behavior; "target state" language moves to ROADMAP only.
 
@@ -61,13 +61,19 @@ The theme: every claim in the README is backed by running behavior a reviewer ca
 
 - NetworkPolicy allow-list enforcement breaks deploys assuming flat reachability.
 - Service-to-service mTLS breaks clients that don't present a cert.
-- Delete list removes `slack-bot`, `apps/ai`, MinIO, RabbitMQ, SPIRE, Vault references — any downstream tooling depending on these must adapt.
+- Operational posture changes materially (observability, demo deployment, CI gating, mTLS enforcement between services), even though the feature surface is additive — no deletions per framing A.
 
 ## v2.1.0+ — reopened questions
 
 Not committed. Items whose exclusion from v2.0.0 is deliberate:
 
-- **SPIFFE/SPIRE reintroduction** — if a consulting engagement specifically requires SPIFFE. The v2.0.0 delete is reversible.
+- **SPIFFE/SPIRE wiring** — manifests are retained in `k8s/base/spire/` at v2.0.0; wiring workload registration + SVID consumption across Django/Spring/Flutter is v2.2.0+ if a consulting engagement requires SPIFFE specifically.
+- **MinIO integration** — scaffolded in compose at v2.0.0; wired when a feature needs object storage (AI model hosting, backup export), v2.1.0+.
+- **RabbitMQ integration** — scaffolded in compose at v2.0.0; wired when a feature needs AMQP-specific semantics (topic exchanges, routing keys), v2.1.0+.
+- **`apps/ai/` ML anomaly detection** — scaffolded at v2.0.0; wired when real ML scope is committed, v2.2.0+.
+- **Standalone `slack-bot/`** — scaffolded at v2.0.0; wired if a use case beyond the Spring Notification Service surfaces, v2.2.0+.
+- **`k8s/argocd/` GitOps path** — committed at v2.0.0 as optional; promoted to the demo path if a deploying team chooses GitOps, v2.1.0+.
+- **HashiCorp Vault vs. External Secrets Operator** — decision pending. v2.2.0+ implementation target; decision required before work starts.
 - **iOS TestFlight distribution** — requires Apple Developer account ($99/yr). Decision cost, not scope cost.
 - **Loki log aggregation** — revisit alongside OTel tracing (below).
 - **OTel distributed tracing.** Full instrumentation in Django + Spring + Flutter. Jaeger already deployed; replace with Tempo or Grafana Cloud if the operational cost of self-hosted tracing is not justified.
