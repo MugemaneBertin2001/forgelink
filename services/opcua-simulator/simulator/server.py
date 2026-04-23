@@ -22,7 +22,7 @@ Address Space Structure:
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Any
 
 from asyncua import Server, ua
@@ -212,12 +212,16 @@ class OPCUASimulator:
 
         node = self.nodes[opc_node_id]
 
-        # Update value
+        # Update value. asyncua's DataValue.__init__ uses ``StatusCode_``
+        # (trailing underscore) to avoid shadowing the ``ua.StatusCode``
+        # type in its own dataclass; passing ``StatusCode=`` raises
+        # TypeError at runtime for every update.
+        now = datetime.now(timezone.utc)
         await node.write_value(ua.DataValue(
             Value=ua.Variant(float(value), ua.VariantType.Double),
-            StatusCode=self._quality_to_status(quality),
-            SourceTimestamp=datetime.utcnow(),
-            ServerTimestamp=datetime.utcnow()
+            StatusCode_=self._quality_to_status(quality),
+            SourceTimestamp=now,
+            ServerTimestamp=now
         ))
 
         logger.debug(f"Updated {opc_node_id} = {value} ({quality})")
