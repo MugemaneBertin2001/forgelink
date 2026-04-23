@@ -3,21 +3,32 @@ version: "3.9"
 # ============================================
 # ForgeLink - Development Overrides
 # ============================================
-# This file automatically loads with docker-compose up
-# Adds hot-reload, debug settings, and dev conveniences
+# This file automatically loads with `docker compose up`
+# Adds hot-reload, debug settings, and dev conveniences.
+#
+# For local port conflicts (e.g., another project already running
+# Postgres on 5432), add a `docker-compose.local.yml` — it is
+# gitignored and will be loaded via
+#   docker compose -f docker-compose.yml -f docker-compose.override.yml \
+#                  -f docker-compose.local.yml up -d
 # ============================================
 
 services:
-  # Django API - Development mode
+  # Django API - Development mode with hot reload
   forgelink-api:
     build:
       context: ./services/django-api
       dockerfile: Dockerfile
       target: development
-    command: python manage.py runserver 0.0.0.0:8000
+    # Ensure Prometheus client multiproc directory exists before Django boots;
+    # django_prometheus fails at import time if the dir is missing.
+    command: >
+      sh -c "mkdir -p /tmp/prometheus &&
+             python manage.py runserver 0.0.0.0:8000"
     environment:
       DJANGO_DEBUG: "true"
       DJANGO_LOG_LEVEL: DEBUG
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
     volumes:
       - ./services/django-api:/app
       - django_static:/app/staticfiles
@@ -25,6 +36,10 @@ services:
     tty: true
 
   # Spring IDP - Development mode
+  # Remote debug is disabled by default because JAVA_TOOL_OPTIONS is inherited
+  # by both Maven and the Spring Boot child JVM, causing double-bind on the
+  # JDWP port. To enable, set JAVA_TOOL_OPTIONS at the child process level
+  # (e.g., via MAVEN_OPTS or spring-boot.run.jvmArguments) instead.
   forgelink-idp:
     build:
       context: ./services/spring-idp
@@ -32,36 +47,22 @@ services:
       target: development
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+      # Clobber the Dockerfile-baked JAVA_TOOL_OPTIONS which starts a JDWP agent
+      # on 5005 — Maven's fork inherits it and fails to re-bind. Remote debug
+      # can be re-enabled via MAVEN_OPTS + spring-boot.run.jvmArguments instead.
+      JAVA_TOOL_OPTIONS: ""
     ports:
       - "8080:8080"
-      - "5005:5005"  # Debug port
 
-  # Spring Asset Service - Development mode
-  forgelink-asset-service:
+  # Spring Notification Service - Development mode
+  forgelink-notification-service:
     build:
-      context: ./services/spring-asset-service
+      context: ./services/spring-notification-service
       dockerfile: Dockerfile
       target: development
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
-    ports:
-      - "8081:8081"
-      - "5006:5006"  # Debug port
-
-  # Spring Alert Service - Development mode
-  forgelink-alert-service:
-    build:
-      context: ./services/spring-alert-service
-      dockerfile: Dockerfile
-      target: development
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
-    ports:
-      - "8082:8082"
-      - "5007:5007"  # Debug port
+      JAVA_TOOL_OPTIONS: ""
 
   # MQTT Bridge - Development mode with hot reload
   forgelink-mqtt-bridge:
@@ -69,12 +70,18 @@ services:
       context: ./services/mqtt-bridge
       dockerfile: Dockerfile
       target: development
+    # prometheus_client multiproc mode requires /tmp/prometheus to exist
+    # before any metric object is constructed at import time.
+    command: >
+      sh -c "mkdir -p /tmp/prometheus &&
+             python -m bridge"
     volumes:
       - ./services/mqtt-bridge:/app
     environment:
       LOG_LEVEL: DEBUG
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
 
-  # Celery Worker - for Django background tasks
+  # Celery Worker - background tasks for Django
   forgelink-celery-worker:
     build:
       context: ./services/django-api
@@ -82,11 +89,11 @@ services:
       target: development
     container_name: forgelink-celery-worker
     hostname: forgelink-celery-worker
-    command: celery -A core worker -l DEBUG -Q default,telemetry,alerts,ai
+    command: celery -A apps.core worker -l DEBUG -Q default,telemetry,alerts,ai
     env_file:
       - .env
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings
+      DJANGO_SETTINGS_MODULE: apps.core.settings
     volumes:
       - ./services/django-api:/app
     networks:
@@ -96,7 +103,7 @@ services:
       - postgres
       - forgelink-api
 
-  # Celery Beat - for scheduled tasks
+  # Celery Beat - scheduled tasks
   forgelink-celery-beat:
     build:
       context: ./services/django-api
@@ -104,11 +111,11 @@ services:
       target: development
     container_name: forgelink-celery-beat
     hostname: forgelink-celery-beat
-    command: celery -A core beat -l DEBUG
+    command: celery -A apps.core beat -l DEBUG
     env_file:
       - .env
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings
+      DJANGO_SETTINGS_MODULE: apps.core.settings
     volumes:
       - ./services/django-api:/app
     networks:
@@ -117,7 +124,7 @@ services:
       - redis
       - forgelink-api
 
-  # Kafka UI - Development convenience
+  # Kafka UI - development convenience
   kafka-ui:
     image: provectuslabs/kafka-ui:v0.7.1
     container_name: forgelink-kafka-ui
@@ -133,7 +140,7 @@ services:
     depends_on:
       - kafka
 
-  # Mailhog - Email testing
+  # Mailhog - local SMTP sink for email testing
   mailhog:
     image: mailhog/mailhog:v1.0.1
     container_name: forgelink-mailhog

@@ -1,5 +1,6 @@
 package com.forgelink.idp.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -68,8 +69,13 @@ public class RefreshToken implements Serializable {
     private String userAgent;
 
     /**
-     * Check if token is expired.
+     * Check if token is expired. Annotated {@link JsonIgnore} because Lombok
+     * {@code @Data} generates an `expired` bean property for this boolean
+     * getter; Jackson serialises it on write but has no matching setter on
+     * read, so the deserialiser aborts with UnrecognizedPropertyException
+     * on every refresh attempt.
      */
+    @JsonIgnore
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
     }

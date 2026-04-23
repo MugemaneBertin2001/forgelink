@@ -7,6 +7,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.permissions import (
+    CanViewTelemetry,
+    HasPermission,
+)
+
 from .serializers import (
     AnomalyDetectionSerializer,
     AreaOverviewSerializer,
@@ -31,7 +36,19 @@ class TelemetryViewSet(viewsets.ViewSet):
     - Getting latest values
     - Batch recording
     - Statistics
+
+    Reads require telemetry.view; batch recording and export require
+    their dedicated permissions.
     """
+
+    def get_permissions(self):
+        # Reads gated on telemetry.view. Write/batch-record endpoints require
+        # the retention-management permission which only FACTORY_ADMIN carries
+        # by default; this keeps viewer/operator/technician from writing
+        # raw points into the timeseries store.
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [CanViewTelemetry()]
+        return [HasPermission("telemetry.manage_retention")]
 
     @action(
         detail=False, methods=["get"], url_path="device/(?P<device_id>[^/.]+)/history"
@@ -276,6 +293,8 @@ class TelemetryViewSet(viewsets.ViewSet):
 
 
 class AreaViewSet(viewsets.ViewSet):
+    permission_classes = [CanViewTelemetry]
+
     """
     ViewSet for area-level telemetry operations.
     """
@@ -309,6 +328,8 @@ class AreaViewSet(viewsets.ViewSet):
 
 
 class PlantDashboardView(APIView):
+    permission_classes = [CanViewTelemetry]
+
     """
     Plant-wide dashboard endpoint.
     """
@@ -327,6 +348,9 @@ class PlantDashboardView(APIView):
 
 
 class TelemetryEventView(APIView):
+    # Event recording is a write against the timeseries path; lock to admin.
+    permission_classes = [HasPermission("telemetry.manage_retention")]
+
     """
     Endpoint for recording telemetry events.
     """
@@ -367,6 +391,9 @@ class TelemetryEventView(APIView):
 
 
 class TDengineSchemaView(APIView):
+    # DDL against TDengine — admin only.
+    permission_classes = [HasPermission("telemetry.manage_retention")]
+
     """
     Endpoint for TDengine schema management.
     """

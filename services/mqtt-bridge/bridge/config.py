@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
-    # Metrics
+    # Metrics + health
     metrics_port: int = 8000
+    health_port: int = 8081
 
     class Config:
         env_prefix = ""

@@ -595,6 +595,34 @@ class AlertQuery(graphene.ObjectType):
 # =============================================================================
 
 
+class PermissionDeniedError(Exception):
+    """Raised when a GraphQL mutation is attempted without required permission."""
+
+
+def _require_permission(info, permission_code: str) -> None:
+    """Enforce a permission on a GraphQL mutation.
+
+    The Graphene view does not run DRF's authentication machinery, so
+    ``request.user`` is Django's AnonymousUser even when a valid JWT is
+    presented. The JWT middleware, however, populates
+    ``request.user_permissions`` (set) and ``request.jwt_payload`` (dict)
+    on every authenticated request — we read those directly so REST and
+    GraphQL apply the same RBAC decisions.
+    """
+    request = getattr(info.context, "request", info.context)
+    # jwt_payload is only attached after the middleware verified the token.
+    payload = getattr(request, "jwt_payload", None)
+    if not payload:
+        raise PermissionDeniedError("Authentication required")
+    permissions = getattr(request, "user_permissions", set()) or set()
+    # FACTORY_ADMIN bypasses fine-grained checks (matches REST behaviour).
+    role_codes = getattr(request, "role_codes", None) or []
+    if "FACTORY_ADMIN" in role_codes:
+        return
+    if permission_code not in permissions:
+        raise PermissionDeniedError(f"Permission denied: {permission_code}")
+
+
 class AcknowledgeAlert(graphene.Mutation):
     """Acknowledge an active alert."""
 
@@ -607,6 +635,7 @@ class AcknowledgeAlert(graphene.Mutation):
     error = graphene.String()
 
     def mutate(self, info, alert_id, user):
+        _require_permission(info, "alerts.acknowledge")
         try:
             alert = Alert.objects.get(id=alert_id)
             if alert.status != "active":
@@ -634,6 +663,7 @@ class ResolveAlert(graphene.Mutation):
     error = graphene.String()
 
     def mutate(self, info, alert_id, user, notes=None):
+        _require_permission(info, "alerts.resolve")
         try:
             alert = Alert.objects.get(id=alert_id)
             if alert.status == "resolved":
@@ -660,6 +690,7 @@ class BulkAcknowledgeAlerts(graphene.Mutation):
     errors = graphene.List(graphene.String)
 
     def mutate(self, info, alert_ids, user):
+        _require_permission(info, "alerts.acknowledge")
         errors = []
         acknowledged = 0
         for alert_id in alert_ids:
@@ -689,6 +720,7 @@ class BulkResolveAlerts(graphene.Mutation):
     errors = graphene.List(graphene.String)
 
     def mutate(self, info, alert_ids, user):
+        _require_permission(info, "alerts.resolve")
         errors = []
         resolved = 0
         for alert_id in alert_ids:

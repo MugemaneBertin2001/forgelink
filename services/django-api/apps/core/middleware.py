@@ -45,12 +45,17 @@ class JWTAuthenticationMiddleware:
             request.user_email = payload.get("email")
             request.plant_id = payload.get("plant_id")
 
-            # Get role_code from JWT (IDP assigns role to user)
-            role_code = payload.get("role")  # Single role code from IDP
-            request.role_code = role_code
+            # Get role_codes from JWT. Spring IDP writes a JSON array under "roles"
+            # (User -> Set<Role>, serialized as JSON list). The singular "role"
+            # claim is accepted as a compatibility fallback — warns if used.
+            role_codes = self._extract_role_codes(payload)
+            request.role_codes = role_codes
+            # role_code preserved for audit/back-compat: joined comma-separated,
+            # or None if no roles. Downstream code should prefer role_codes.
+            request.role_code = ",".join(sorted(role_codes)) if role_codes else None
 
-            # Resolve role_code → permissions from Django
-            request.user_permissions = self._resolve_permissions(role_code)
+            # Resolve role_codes → permissions from Django
+            request.user_permissions = self._resolve_permissions(role_codes)
 
         except jwt.ExpiredSignatureError:
             return JsonResponse({"error": "Token expired"}, status=401)
@@ -60,17 +65,50 @@ class JWTAuthenticationMiddleware:
 
         return self.get_response(request)
 
-    def _resolve_permissions(self, role_code: Optional[str]) -> set:
-        """Resolve role_code to set of permission codes."""
-        if not role_code:
+    @staticmethod
+    def _extract_role_codes(payload: dict) -> list:
+        """Extract role codes from JWT payload, normalising to a list.
+
+        Preferred claim: ``roles`` (list of role codes, matching Spring IDP).
+        Accepted fallback: ``role`` (single string) — logged as deprecated.
+        """
+        roles_claim = payload.get("roles")
+        if roles_claim is not None:
+            if isinstance(roles_claim, list):
+                return [r for r in roles_claim if r]
+            if isinstance(roles_claim, str):
+                return [roles_claim] if roles_claim else []
+            # Set, tuple, or other iterable
+            try:
+                return [r for r in roles_claim if r]
+            except TypeError:
+                logger.warning(
+                    "JWT 'roles' claim has unexpected type %s; ignoring",
+                    type(roles_claim).__name__,
+                )
+                return []
+
+        # Compatibility fallback for the legacy singular "role" claim.
+        role_claim = payload.get("role")
+        if role_claim:
+            logger.warning(
+                "JWT carries legacy singular 'role' claim; issuer should emit "
+                "'roles' as a JSON array"
+            )
+            return [role_claim]
+        return []
+
+    def _resolve_permissions(self, role_codes: list) -> set:
+        """Resolve a list of role codes to the union of permission codes."""
+        if not role_codes:
             return set()
 
         try:
             from apps.core.models import Role
 
-            return Role.get_permissions_for_role(role_code)
+            return Role.get_permissions_for_roles(role_codes)
         except Exception as e:
-            logger.warning(f"Failed to resolve permissions for role {role_code}: {e}")
+            logger.warning(f"Failed to resolve permissions for roles {role_codes}: {e}")
             return set()
 
     def _is_public_path(self, path: str) -> bool:
@@ -234,7 +272,17 @@ class AuditMiddleware:
                 user_id = request.jwt_payload.get("sub") or request.jwt_payload.get(
                     "email"
                 )
-                role_code = request.jwt_payload.get("role")
+                # Prefer the list already extracted by JWTAuthenticationMiddleware.
+                # Fall back to re-extracting from the payload in case this
+                # request came through a code path that bypassed the auth middleware.
+                role_codes = getattr(
+                    request,
+                    "role_codes",
+                    JWTAuthenticationMiddleware._extract_role_codes(
+                        request.jwt_payload
+                    ),
+                )
+                role_code = ",".join(sorted(role_codes)) if role_codes else None
 
             # Extract resource type and ID from path
             resource_type, resource_id = self._parse_resource(request.path)

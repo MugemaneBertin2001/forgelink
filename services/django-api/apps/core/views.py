@@ -1,7 +1,11 @@
 """Core views including health checks."""
 
+import logging
+
 from django.db import connection
 from django.http import JsonResponse
+
+logger = logging.getLogger(__name__)
 
 
 def health_check(request):
@@ -25,8 +29,8 @@ def readiness_check(request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
         checks["database"] = True
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("readiness: postgres check failed: %s", exc)
 
     # Check Redis
     try:
@@ -35,19 +39,22 @@ def readiness_check(request):
         cache.set("health_check", "ok", 1)
         if cache.get("health_check") == "ok":
             checks["redis"] = True
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("readiness: redis check failed: %s", exc)
 
-    # Check TDengine
+    # Check TDengine. Historical bug: this imported a phantom
+    # `get_tdengine_connection`, silently failing in the bare except and
+    # making /ready/ always report 503 regardless of TDengine health. The
+    # real client factory is apps.telemetry.tdengine.get_client().
     try:
-        from apps.telemetry.tdengine import get_tdengine_connection
+        from apps.telemetry.tdengine import get_client
 
-        conn = get_tdengine_connection()
-        if conn:
-            checks["tdengine"] = True
-            conn.close()
-    except Exception:
-        pass
+        client = get_client()
+        # Cheap round-trip against the running TDengine instance.
+        client.execute("SELECT SERVER_VERSION()").close()
+        checks["tdengine"] = True
+    except Exception as exc:
+        logger.warning("readiness: tdengine check failed: %s", exc)
 
     all_healthy = all(checks.values())
     status_code = 200 if all_healthy else 503

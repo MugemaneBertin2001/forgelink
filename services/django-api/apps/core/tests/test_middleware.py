@@ -215,21 +215,59 @@ class TestAuditMiddleware:
         assert response.status_code == 200
 
     def test_audit_includes_user_info(self, request_factory, get_response):
-        """Test that audit includes user information."""
+        """Audit middleware records role info from the "roles" claim emitted by IDP."""
         middleware = AuditMiddleware(get_response)
         request = request_factory.post("/api/test/", {})
+        # Contract with Spring IDP: roles is a JSON array. See
+        # services/spring-idp/src/main/java/com/forgelink/idp/service/JwtService.java
         request.jwt_payload = {
             "sub": "user123",
             "email": "user@test.com",
-            "role": "OPERATOR",
+            "roles": ["PLANT_OPERATOR"],
         }
+        request.role_codes = ["PLANT_OPERATOR"]
         request.META["REMOTE_ADDR"] = "127.0.0.1"
 
         with patch("apps.audit.tasks.create_audit_log") as mock_audit:
             middleware(request)
             call_kwargs = mock_audit.delay.call_args[1]
             assert call_kwargs["user_id"] == "user123"
-            assert call_kwargs["role_code"] == "OPERATOR"
+            assert call_kwargs["role_code"] == "PLANT_OPERATOR"
+
+    def test_audit_joins_multiple_roles(self, request_factory, get_response):
+        """Multi-role users get their roles comma-joined, alphabetically sorted."""
+        middleware = AuditMiddleware(get_response)
+        request = request_factory.post("/api/test/", {})
+        request.jwt_payload = {
+            "sub": "user999",
+            "email": "multi@test.com",
+            "roles": ["TECHNICIAN", "PLANT_OPERATOR"],
+        }
+        request.role_codes = ["TECHNICIAN", "PLANT_OPERATOR"]
+        request.META["REMOTE_ADDR"] = "127.0.0.1"
+
+        with patch("apps.audit.tasks.create_audit_log") as mock_audit:
+            middleware(request)
+            call_kwargs = mock_audit.delay.call_args[1]
+            assert call_kwargs["role_code"] == "PLANT_OPERATOR,TECHNICIAN"
+
+    def test_audit_falls_back_to_legacy_role_claim(self, request_factory, get_response):
+        """Tokens carrying the deprecated singular 'role' claim still audit correctly."""
+        middleware = AuditMiddleware(get_response)
+        request = request_factory.post("/api/test/", {})
+        # Simulates a legacy token from a pre-contract-fix IDP.
+        request.jwt_payload = {
+            "sub": "legacy",
+            "email": "legacy@test.com",
+            "role": "VIEWER",
+        }
+        # Deliberately omit request.role_codes to exercise the fallback path.
+        request.META["REMOTE_ADDR"] = "127.0.0.1"
+
+        with patch("apps.audit.tasks.create_audit_log") as mock_audit:
+            middleware(request)
+            call_kwargs = mock_audit.delay.call_args[1]
+            assert call_kwargs["role_code"] == "VIEWER"
 
     def test_parse_resource_extracts_type(self, request_factory, get_response):
         """Test resource type extraction from path."""
