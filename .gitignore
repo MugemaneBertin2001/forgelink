@@ -232,3 +232,6 @@ infra/ansible/*.retry
 .cache/
 tmp/
 temp/
+
+# Local-only port-remap / dev overrides
+docker-compose.local.yml
