@@ -203,3 +203,135 @@ class TestTelemetryKafkaConsumer:
 
         assert consumer.stats["messages_received"] == 1
         assert len(consumer.batch) == 1
+
+
+class TestAtLeastOnceDelivery:
+    """Pin the at-least-once delivery contract for the telemetry consumer.
+
+    These tests guard against the historical regression where
+    ``enable.auto.commit=True`` caused Kafka offsets to advance before the
+    batch had landed in TDengine, silently losing data on any crash
+    between poll and flush.
+    """
+
+    def _make_msg(self, offset=0, value=None):
+        msg = MagicMock()
+        msg.topic.return_value = "telemetry.melt-shop"
+        msg.partition.return_value = 0
+        msg.offset.return_value = offset
+        msg.value.return_value = (
+            value
+            if value is not None
+            else (
+                b'{"device_id":"temp-001","value":1.0,"quality":"good",'
+                b'"timestamp":"2024-01-01T00:00:00Z","plant":"p","area":"melt-shop"}'
+            )
+        )
+        return msg
+
+    def test_enable_auto_commit_is_false(self):
+        consumer = TelemetryKafkaConsumer(bootstrap_servers="kafka:9092")
+        with patch("apps.telemetry.kafka_consumer.Consumer") as mock_cls:
+            consumer.create_consumer()
+            config = mock_cls.call_args[0][0]
+        assert (
+            config["enable.auto.commit"] is False
+        ), "at-least-once delivery requires manual commit after batch flush"
+
+    def test_auto_offset_reset_is_earliest(self):
+        consumer = TelemetryKafkaConsumer(bootstrap_servers="kafka:9092")
+        with patch("apps.telemetry.kafka_consumer.Consumer") as mock_cls:
+            consumer.create_consumer()
+            config = mock_cls.call_args[0][0]
+        assert config["auto.offset.reset"] == "earliest", (
+            "new groups must backfill from the start so no historical "
+            "telemetry is silently skipped on cold start"
+        )
+
+    @patch("apps.telemetry.kafka_consumer.insert_telemetry_batch")
+    def test_successful_flush_commits_last_offset(self, mock_insert):
+        mock_insert.return_value = 3
+        consumer = TelemetryKafkaConsumer()
+        consumer.consumer = MagicMock()
+
+        msg1, msg2, msg3 = (
+            self._make_msg(offset=10),
+            self._make_msg(offset=11),
+            self._make_msg(offset=12),
+        )
+        consumer.batch = [{"ts": "x", "value": i} for i in range(3)]
+        consumer.batch_messages = [msg1, msg2, msg3]
+
+        consumer.flush_batch()
+
+        assert consumer.consumer.commit.called
+        commit_kwargs = consumer.consumer.commit.call_args.kwargs
+        assert commit_kwargs["message"] is msg3, (
+            "per-partition commits are monotonic; the last message in the "
+            "batch carries the highest offset"
+        )
+        assert commit_kwargs["asynchronous"] is False
+        assert consumer.stats["commits"] == 1
+        assert consumer.batch == [] and consumer.batch_messages == []
+
+    @patch("apps.telemetry.kafka_consumer.insert_telemetry_batch")
+    def test_no_commit_when_tdengine_and_dlq_both_fail(self, mock_insert):
+        mock_insert.side_effect = RuntimeError("tdengine down")
+        consumer = TelemetryKafkaConsumer()
+        consumer.consumer = MagicMock()
+
+        with patch.object(consumer, "_send_to_dlq", return_value=False):
+            consumer.batch = [{"ts": "x", "value": 1.0}]
+            consumer.batch_messages = [self._make_msg(offset=42)]
+            consumer.flush_batch()
+
+        assert consumer.consumer.commit.called is False, (
+            "if neither the primary write nor the DLQ accepted the record, "
+            "the Kafka offset MUST NOT advance — otherwise the record is "
+            "silently lost on the next poll cycle"
+        )
+        assert consumer.stats["errors"] == 1
+
+    @patch("apps.telemetry.kafka_consumer.insert_telemetry_batch")
+    def test_commit_when_tdengine_fails_but_dlq_succeeds(self, mock_insert):
+        mock_insert.side_effect = RuntimeError("tdengine down")
+        consumer = TelemetryKafkaConsumer()
+        consumer.consumer = MagicMock()
+        msg = self._make_msg(offset=42)
+
+        with patch.object(consumer, "_send_to_dlq", return_value=True):
+            consumer.batch = [{"ts": "x", "value": 1.0}]
+            consumer.batch_messages = [msg]
+            consumer.flush_batch()
+
+        assert consumer.consumer.commit.called is True
+        assert consumer.consumer.commit.call_args.kwargs["message"] is msg
+
+    def test_empty_batch_does_not_commit(self):
+        consumer = TelemetryKafkaConsumer()
+        consumer.consumer = MagicMock()
+        consumer.batch = []
+        consumer.batch_messages = []
+
+        consumer.flush_batch()
+
+        assert consumer.consumer.commit.called is False
+
+    @patch("confluent_kafka.Producer")
+    def test_unparseable_message_dlqed_and_committed(self, mock_producer_cls):
+        mock_producer = MagicMock()
+        mock_producer.flush.return_value = 0
+        mock_producer_cls.return_value = mock_producer
+
+        consumer = TelemetryKafkaConsumer()
+        consumer.consumer = MagicMock()
+
+        bad = self._make_msg(offset=99, value=b"totally not json")
+        consumer.process_message(bad)
+
+        # Published to dlq.unparseable and committed so the partition
+        # is not blocked on the poisonous record.
+        mock_producer.produce.assert_called()
+        assert mock_producer.produce.call_args.args[0] == "dlq.unparseable"
+        assert consumer.consumer.commit.called
+        assert consumer.consumer.commit.call_args.kwargs["message"] is bad
