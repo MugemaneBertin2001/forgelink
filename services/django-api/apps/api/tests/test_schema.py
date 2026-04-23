@@ -1,9 +1,32 @@
 """Tests for GraphQL schema."""
 
+from types import SimpleNamespace
+
 import pytest
 from graphene.test import Client
 
 from apps.api.schema import schema
+
+
+def _authenticated_context(permissions=None, roles=None):
+    """Build a Graphene context that mirrors what the JWT middleware sets.
+
+    Alert mutations call ``_require_permission(info, ...)`` which reads
+    ``info.context.request.jwt_payload`` / ``role_codes`` / ``user_permissions``
+    (or the same attrs directly on info.context). The middleware normally
+    populates those on every authenticated request; unit tests bypass
+    middleware, so we fabricate an equivalent SimpleNamespace here.
+    """
+    return SimpleNamespace(
+        jwt_payload={
+            "sub": "test-user",
+            "email": "test@forgelink.local",
+            "roles": roles or ["FACTORY_ADMIN"],
+        },
+        role_codes=roles or ["FACTORY_ADMIN"],
+        user_permissions=permissions
+        or {"alerts.view", "alerts.acknowledge", "alerts.resolve"},
+    )
 
 
 @pytest.mark.django_db
@@ -14,6 +37,11 @@ class TestGraphQLSchema:
     def graphql_client(self):
         """Create GraphQL test client."""
         return Client(schema)
+
+    @pytest.fixture
+    def auth_context(self):
+        """Authenticated FACTORY_ADMIN context for mutation tests."""
+        return _authenticated_context()
 
     def test_hello_query(self, graphql_client):
         """Test basic hello query."""
@@ -166,7 +194,7 @@ class TestGraphQLSchema:
         assert "total" in stats
         assert "active" in stats
 
-    def test_acknowledge_alert_mutation(self, graphql_client, alert):
+    def test_acknowledge_alert_mutation(self, graphql_client, alert, auth_context):
         """Test acknowledge alert mutation."""
         mutation = f"""
             mutation {{
@@ -179,12 +207,12 @@ class TestGraphQLSchema:
                 }}
             }}
         """
-        result = graphql_client.execute(mutation)
+        result = graphql_client.execute(mutation, context_value=auth_context)
 
         assert "errors" not in result or result["errors"] is None
         assert result["data"]["acknowledgeAlert"]["success"] is True
 
-    def test_resolve_alert_mutation(self, graphql_client, alert):
+    def test_resolve_alert_mutation(self, graphql_client, alert, auth_context):
         """Test resolve alert mutation."""
         # First acknowledge
         alert.acknowledge("test@forgelink.local")
@@ -200,12 +228,12 @@ class TestGraphQLSchema:
                 }}
             }}
         """
-        result = graphql_client.execute(mutation)
+        result = graphql_client.execute(mutation, context_value=auth_context)
 
         assert "errors" not in result or result["errors"] is None
         assert result["data"]["resolveAlert"]["success"] is True
 
-    def test_acknowledge_nonexistent_alert(self, graphql_client):
+    def test_acknowledge_nonexistent_alert(self, graphql_client, auth_context):
         """Test acknowledging nonexistent alert."""
         mutation = """
             mutation {
@@ -215,13 +243,15 @@ class TestGraphQLSchema:
                 }
             }
         """
-        result = graphql_client.execute(mutation)
+        result = graphql_client.execute(mutation, context_value=auth_context)
 
         assert "errors" not in result or result["errors"] is None
         assert result["data"]["acknowledgeAlert"]["success"] is False
         assert "not found" in result["data"]["acknowledgeAlert"]["error"]
 
-    def test_bulk_acknowledge_mutation(self, graphql_client, device, alert_rule):
+    def test_bulk_acknowledge_mutation(
+        self, graphql_client, device, alert_rule, auth_context
+    ):
         """Test bulk acknowledge mutation."""
         import json
 
@@ -249,7 +279,7 @@ class TestGraphQLSchema:
             }}
         """
 
-        result = graphql_client.execute(mutation)
+        result = graphql_client.execute(mutation, context_value=auth_context)
 
         assert "errors" not in result or result["errors"] is None
         assert result["data"]["bulkAcknowledgeAlerts"]["acknowledgedCount"] == 3

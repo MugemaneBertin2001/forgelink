@@ -29,9 +29,7 @@ class JWTUser:
         )
         # role_code preserved for back-compat (audit logs, simple displays):
         # comma-separated, alphabetically sorted, or None.
-        self.role_code = (
-            ",".join(sorted(self.role_codes)) if self.role_codes else None
-        )
+        self.role_code = ",".join(sorted(self.role_codes)) if self.role_codes else None
         self.plant_id = payload.get("plant_id")
         self.area_code = payload.get("area")  # Optional area restriction
         self.is_authenticated = True

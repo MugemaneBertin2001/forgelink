@@ -28,7 +28,6 @@ import pytest
 from apps.core.authentication import JWTUser
 from apps.core.middleware import JWTAuthenticationMiddleware
 
-
 # The shape IDP actually emits, mirrored from JwtService.generateAccessToken.
 # Keep this dict in sync with that method; a divergence here means a
 # divergence in production.
@@ -71,9 +70,7 @@ class TestExtractRoleCodes:
 
     def test_roles_as_json_array_is_the_contract(self):
         """The canonical IDP payload uses a 'roles' JSON array."""
-        result = JWTAuthenticationMiddleware._extract_role_codes(
-            IDP_PRODUCER_PAYLOAD
-        )
+        result = JWTAuthenticationMiddleware._extract_role_codes(IDP_PRODUCER_PAYLOAD)
         assert result == ["PLANT_OPERATOR"]
 
     def test_multi_role_list_preserved(self):
@@ -94,9 +91,7 @@ class TestExtractRoleCodes:
 
     def test_legacy_singular_role_string_is_accepted(self):
         """Tokens from a pre-contract-fix IDP still resolve."""
-        result = JWTAuthenticationMiddleware._extract_role_codes(
-            {"role": "VIEWER"}
-        )
+        result = JWTAuthenticationMiddleware._extract_role_codes({"role": "VIEWER"})
         assert result == ["VIEWER"]
 
     def test_roles_as_string_coerced_to_singleton_list(self):
@@ -232,9 +227,7 @@ class TestAuditMiddlewareConsumerContract:
 
         return _response
 
-    def test_audit_middleware_reads_roles_list(
-        self, request_factory, get_response
-    ):
+    def test_audit_middleware_reads_roles_list(self, request_factory, get_response):
         from unittest.mock import patch
 
         from apps.core.middleware import AuditMiddleware

@@ -108,9 +108,7 @@ class JWTAuthenticationMiddleware:
 
             return Role.get_permissions_for_roles(role_codes)
         except Exception as e:
-            logger.warning(
-                f"Failed to resolve permissions for roles {role_codes}: {e}"
-            )
+            logger.warning(f"Failed to resolve permissions for roles {role_codes}: {e}")
             return set()
 
     def _is_public_path(self, path: str) -> bool:
@@ -284,9 +282,7 @@ class AuditMiddleware:
                         request.jwt_payload
                     ),
                 )
-                role_code = (
-                    ",".join(sorted(role_codes)) if role_codes else None
-                )
+                role_code = ",".join(sorted(role_codes)) if role_codes else None
 
             # Extract resource type and ID from path
             resource_type, resource_id = self._parse_resource(request.path)
