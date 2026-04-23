@@ -30,6 +30,13 @@ public class SecurityConfig {
                 .requestMatchers("/auth/jwks").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/info").permitAll()
+                // Prometheus scrape endpoint: exposed for the in-cluster
+                // Prometheus scraper. Production deployments should
+                // restrict access at the NetworkPolicy / ingress layer
+                // rather than requiring authentication, since scrape
+                // credentials are awkward to manage at metric collection
+                // frequency.
+                .requestMatchers("/actuator/prometheus").permitAll()
                 .requestMatchers("/api-docs/**").permitAll()
                 .requestMatchers("/swagger-ui/**").permitAll()
                 // All other endpoints require authentication
