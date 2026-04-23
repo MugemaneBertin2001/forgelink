@@ -41,11 +41,49 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
+      # Decode the release keystore from GitHub Actions secrets and write a
+      # transient key.properties. build.gradle.kts picks up the file
+      # automatically and signs release builds with the configured keystore.
+      # If the secrets are missing (e.g. a fork without secret access), the
+      # Gradle config falls back to the debug keystore so the build still
+      # produces an APK — it just is not install-friendly on phones with
+      # Play Protect enabled.
+      - name: Configure Android release signing
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: services/flutter-app/android
+        run: |
+          set -euo pipefail
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > forgelink-release.jks
+          cat > key.properties <<EOF
+          storeFile=forgelink-release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          chmod 600 forgelink-release.jks key.properties
+          echo "release_signing=configured" >> "$GITHUB_ENV"
+
       - name: Build Flutter APK
         working-directory: services/flutter-app
         run: |
           flutter pub get
           flutter build apk --release
+
+      - name: Verify APK signature (best-effort)
+        working-directory: services/flutter-app
+        run: |
+          ls -la build/app/outputs/flutter-apk/
+          # apksigner ships with Android build-tools; skip gracefully if
+          # the workflow cannot locate it (it's not a release blocker).
+          apksigner_bin="$(find "${ANDROID_HOME:-/opt/android-sdk}" -name apksigner -type f 2>/dev/null | head -1 || true)"
+          if [[ -n "$apksigner_bin" ]]; then
+            "$apksigner_bin" verify --verbose build/app/outputs/flutter-apk/app-release.apk || true
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
