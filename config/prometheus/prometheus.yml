@@ -1,51 +1,67 @@
 # ForgeLink Prometheus Configuration
+#
+# Scrape targets are aligned to the services actually deployed in
+# docker-compose.yml. Historic entries for the deleted Spring Asset and
+# Spring Alert services have been removed; the Spring Notification
+# Service has been added. The Redis / EMQX direct scrapes were likewise
+# dropped — neither service exposes Prometheus text format on a plain
+# port, and wiring the official prometheus-redis-exporter / EMQX
+# prometheus plugin is a separate workstream with its own manifests.
+#
+# Kubernetes deployments use ServiceMonitor / PodMonitor objects against
+# the same paths — see k8s/ for the manifests that mirror these targets.
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: forgelink-local
+    environment: dev
 
 scrape_configs:
   # Prometheus self-monitoring
-  - job_name: 'prometheus'
+  - job_name: prometheus
     static_configs:
       - targets: ['localhost:9090']
 
-  # Django API
-  - job_name: 'forgelink-api'
+  # Django integration hub — exposes django-prometheus middleware metrics
+  # (HTTP request histograms, DB query counts, cache hit rates, etc.) at
+  # the root /metrics path.
+  - job_name: forgelink-api
+    metrics_path: /metrics
     static_configs:
       - targets: ['forgelink-api:8000']
-    metrics_path: /metrics
+        labels:
+          service: forgelink-api
+          tier: application
 
-  # Spring IDP
-  - job_name: 'forgelink-idp'
+  # Spring IDP — Micrometer via Spring Boot Actuator. Exposed endpoint
+  # is allow-listed in SecurityConfig so the scraper does not need an
+  # auth token at collection frequency.
+  - job_name: forgelink-idp
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['forgelink-idp:8080']
-    metrics_path: /actuator/prometheus
+        labels:
+          service: forgelink-idp
+          tier: application
 
-  # Spring Asset Service
-  - job_name: 'forgelink-asset-service'
+  # Spring Notification Service — Actuator Prometheus on :8082.
+  - job_name: forgelink-notification-service
+    metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ['forgelink-asset-service:8081']
-    metrics_path: /actuator/prometheus
+      - targets: ['forgelink-notification-service:8082']
+        labels:
+          service: forgelink-notification
+          tier: application
 
-  # Spring Alert Service
-  - job_name: 'forgelink-alert-service'
-    static_configs:
-      - targets: ['forgelink-alert-service:8082']
-    metrics_path: /actuator/prometheus
-
-  # MQTT Bridge
-  - job_name: 'forgelink-mqtt-bridge'
+  # MQTT → Kafka bridge — Python prometheus_client on port 8000 of the
+  # bridge container. MQTT message counts, Kafka publish latency, DLQ
+  # counter, parse errors.
+  - job_name: forgelink-mqtt-bridge
+    metrics_path: /metrics
     static_configs:
       - targets: ['forgelink-mqtt-bridge:8000']
-
-  # EMQX
-  - job_name: 'emqx'
-    static_configs:
-      - targets: ['emqx:18083']
-    metrics_path: /api/v5/prometheus/stats
-
-  # Redis
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
+        labels:
+          service: forgelink-mqtt-bridge
+          tier: edge

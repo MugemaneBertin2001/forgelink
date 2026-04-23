@@ -1,0 +1,19 @@
+# ForgeLink Grafana dashboard provisioning
+#
+# Auto-loads any JSON dashboard under /var/lib/grafana/dashboards on
+# Grafana startup. Dashboards are read-only in the UI (see
+# `allowUiUpdates: false`) so that an exported JSON is the single
+# source of truth; edits happen in git, not in the running container.
+apiVersion: 1
+
+providers:
+  - name: ForgeLink
+    orgId: 1
+    folder: ForgeLink
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true
