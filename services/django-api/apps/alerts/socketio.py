@@ -82,12 +82,20 @@ class SocketIOAuthenticator:
             return {"keys": []}
 
     @classmethod
-    def get_user_permissions(cls, role_code: str) -> Set[str]:
-        """Get permissions for a role code."""
+    def get_user_permissions(cls, role_codes) -> Set[str]:
+        """Get the union of permissions for one or more role codes.
+
+        Accepts either a list of role codes (preferred, matching the JWT
+        ``roles`` claim) or a single string for back-compat.
+        """
+        if not role_codes:
+            return set()
+        if isinstance(role_codes, str):
+            role_codes = [role_codes]
         try:
             from apps.core.models import Role
 
-            return Role.get_permissions_for_role(role_code)
+            return Role.get_permissions_for_roles(list(role_codes))
         except Exception:
             return set()
 
@@ -146,12 +154,17 @@ class AlertNamespace(socketio.AsyncNamespace):
             )
             raise ConnectionRefusedError("Invalid token")
 
-        # Get user info and permissions
-        role_code = payload.get("role")
-        permissions = SocketIOAuthenticator.get_user_permissions(role_code)
+        # Get user info and permissions.
+        # Spring IDP writes the "roles" claim as a JSON array; accept the
+        # legacy singular "role" claim as a fallback.
+        from apps.core.middleware import JWTAuthenticationMiddleware
+
+        role_codes = JWTAuthenticationMiddleware._extract_role_codes(payload)
+        permissions = SocketIOAuthenticator.get_user_permissions(role_codes)
 
         # Check if user has alerts.view permission
-        if "alerts.view" not in permissions and role_code != "FACTORY_ADMIN":
+        is_admin = "FACTORY_ADMIN" in role_codes
+        if "alerts.view" not in permissions and not is_admin:
             logger.warning(
                 f"Socket.IO connection rejected: no alerts.view permission - {sid}"
             )
@@ -162,7 +175,7 @@ class AlertNamespace(socketio.AsyncNamespace):
         self.sessions[sid] = {
             "user_id": payload.get("sub"),
             "email": payload.get("email"),
-            "role": role_code,
+            "roles": role_codes,
             "permissions": permissions,
             "area": payload.get("area"),  # Area restriction from token
             "subscribed_areas": set(),
@@ -170,7 +183,7 @@ class AlertNamespace(socketio.AsyncNamespace):
         }
 
         logger.info(
-            f"Client authenticated: {sid} - {payload.get('email')} ({role_code})"
+            f"Client authenticated: {sid} - {payload.get('email')} ({role_codes})"
         )
 
         # Send auth success and initial stats
@@ -178,7 +191,7 @@ class AlertNamespace(socketio.AsyncNamespace):
             "auth:success",
             {
                 "user": payload.get("email"),
-                "role": role_code,
+                "roles": role_codes,
                 "permissions": list(permissions),
             },
             to=sid,
