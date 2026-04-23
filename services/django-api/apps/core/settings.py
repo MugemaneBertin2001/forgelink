@@ -13,8 +13,11 @@ class Settings(BaseSettings):
     """Environment-based settings using Pydantic."""
 
     # Django
+    # DEBUG defaults to False so a missing DJANGO_DEBUG env var does not
+    # silently boot the production container in debug mode. Local dev
+    # flips it on explicitly via .env / docker-compose.override.yml.
     secret_key: str = "django-insecure-change-me-in-production"
-    debug: bool = True
+    debug: bool = False
     allowed_hosts: str = "localhost,127.0.0.1"
     csrf_trusted_origins: str = "http://localhost:8000"
 
@@ -79,6 +82,55 @@ SECRET_KEY = env.secret_key
 DEBUG = env.debug
 ALLOWED_HOSTS = [h.strip() for h in env.allowed_hosts.split(",")]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env.csrf_trusted_origins.split(",")]
+
+# Startup guard against booting production with the insecure default
+# SECRET_KEY. Django itself silently accepts the `django-insecure-*`
+# prefix, so without this check a misconfigured prod container starts
+# cleanly and issues signed tokens with a known key. We fail loud.
+_INSECURE_DEFAULT_SECRET_KEY = "django-insecure-change-me-in-production"
+if not DEBUG and SECRET_KEY == _INSECURE_DEFAULT_SECRET_KEY:
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY is still the insecure default. "
+        "Set DJANGO_SECRET_KEY in the environment before running with DEBUG=False."
+    )
+
+# Production hardening headers. Gated on DEBUG=False so local dev
+# (which often uses http://localhost) is unaffected.
+if not DEBUG:
+    # HSTS — tell browsers to only talk HTTPS for a year. include_subdomains
+    # is safe because every demo subdomain (api., idp., mqtt.) also runs
+    # behind TLS. preload is left off until after we've verified steady
+    # state — turning it on is a one-way door for the browser preload
+    # list.
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365  # 365 days
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = False
+
+    # Redirect any http:// request to https://. The load balancer / ingress
+    # terminates TLS for us, so Django sees traffic as HTTP internally —
+    # SECURE_PROXY_SSL_HEADER tells it the real scheme was HTTPS.
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+    # Cookies carrying session / CSRF state must never cross a cleartext
+    # connection.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = False  # leave False — HTMX / legacy JS read it
+    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SAMESITE = "Lax"
+
+    # Additional browser-side hardening.
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+    # Clickjacking: Django already installs XFrameOptionsMiddleware by
+    # default; we explicitly DENY here rather than the Django default
+    # of SAMEORIGIN.
+    X_FRAME_OPTIONS = "DENY"
 
 # Application definition
 INSTALLED_APPS = [
@@ -330,9 +382,17 @@ UNFOLD = {
     "SHOW_VIEW_ON_SITE": True,
 }
 
-# Socket.IO
+# Socket.IO.
+#
+# Historical config allowed "*" here "for the Flutter app" — but a WS
+# wildcard allowlist means any website can open a WebSocket from a
+# logged-in user's browser and receive their alerts. Flutter native
+# clients don't need an origin because they don't send one (native
+# Dart Socket.IO opens the WS without an Origin header, so
+# engineio accepts it regardless of the allowlist). Web clients should
+# match the explicit HTTP origin list.
 SOCKETIO = {
-    "CORS_ALLOWED_ORIGINS": CORS_ALLOWED_ORIGINS + ["*"],  # Flutter app
+    "CORS_ALLOWED_ORIGINS": CORS_ALLOWED_ORIGINS,
     "ASYNC_MODE": "asgi",
     "PING_TIMEOUT": 60,
     "PING_INTERVAL": 25,

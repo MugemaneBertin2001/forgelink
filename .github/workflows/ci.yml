@@ -67,6 +67,12 @@ jobs:
       - name: Run tests
         env:
           DJANGO_SETTINGS_MODULE: apps.core.settings
+          # The prod-mode startup guard in apps/core/settings.py raises
+          # when DEBUG=False AND SECRET_KEY is the insecure default.
+          # CI is not prod; set both explicitly so future flips of the
+          # Pydantic defaults don't silently break the runner.
+          DJANGO_DEBUG: "True"
+          DJANGO_SECRET_KEY: ci-secret-not-for-production-ignore
           DJANGO_DB_HOST: localhost
           DJANGO_DB_PORT: 5432
           DJANGO_DB_NAME: forgelink_test
