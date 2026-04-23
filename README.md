@@ -104,6 +104,18 @@ python scripts/seed-factory-data.py
 
 ---
 
+## Mobile app
+
+Android APK is published as an asset on every tagged release. Install on a
+phone via `adb` or the unknown-sources sideload path — full guide at
+[`docs/mobile/install.md`](docs/mobile/install.md).
+
+- **Latest APK:** [`app-release.apk`](https://github.com/MugemaneBertin2001/forgelink/releases/latest/download/app-release.apk)
+- **Minimum Android:** 10 (API 29)
+- **iOS:** planned for v2.0.0 / v2.1.0; requires an Apple Developer account
+
+---
+
 ## Project Structure
 
 ```
