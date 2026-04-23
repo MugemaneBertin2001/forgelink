@@ -9,7 +9,7 @@ PARTITIONS="${PARTITIONS:-3}"
 REPLICATION="${REPLICATION:-1}"
 
 echo "Waiting for Kafka to be ready..."
-until kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --list &>/dev/null; do
+until kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list &>/dev/null; do
     sleep 2
 done
 echo "Kafka is ready!"
@@ -21,11 +21,11 @@ create_topic() {
     local retention_ms=${3:-604800000}  # Default 7 days
     local cleanup_policy=${4:-delete}
 
-    if kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --list | grep -q "^${topic}$"; then
+    if kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list | grep -q "^${topic}$"; then
         echo "Topic '$topic' already exists"
     else
         echo "Creating topic: $topic (partitions=$partitions, retention=${retention_ms}ms)"
-        kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" \
+        kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" \
             --create \
             --topic "$topic" \
             --partitions "$partitions" \
@@ -141,8 +141,8 @@ echo ""
 echo "Creating compacted topics..."
 
 # Latest device state (compacted)
-kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --list | grep -q "^device-state$" || \
-kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" \
+kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list | grep -q "^device-state$" || \
+kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" \
     --create \
     --topic "device-state" \
     --partitions 3 \
@@ -152,8 +152,8 @@ kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" \
     --config segment.ms=100
 
 # Latest asset state (compacted)
-kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --list | grep -q "^asset-state$" || \
-kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" \
+kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list | grep -q "^asset-state$" || \
+kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" \
     --create \
     --topic "asset-state" \
     --partitions 3 \
@@ -169,4 +169,4 @@ echo "============================================"
 # List all topics
 echo ""
 echo "Current topics:"
-kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --list
+kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list

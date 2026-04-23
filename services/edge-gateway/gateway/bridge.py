@@ -68,9 +68,20 @@ class EdgeGateway:
         # Sequence counters
         self._sequences: Dict[str, int] = {}
 
+        # Asyncio event loop captured at start() time so that paho's
+        # network-thread callbacks can schedule coroutines back onto it
+        # with asyncio.run_coroutine_threadsafe. Calling asyncio.create_task
+        # or asyncio.get_event_loop() from a non-loop thread raises
+        # RuntimeError at runtime.
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
     async def start(self):
         """Start the edge gateway."""
         self._running = True
+
+        # Capture the running event loop so MQTT-thread callbacks can
+        # marshal work back onto it safely.
+        self._loop = asyncio.get_running_loop()
 
         # Start MQTT client
         self._setup_mqtt()
@@ -129,25 +140,32 @@ class EdgeGateway:
             logger.error(f"MQTT connection failed: {e}")
 
     def _on_mqtt_connect(self, client, userdata, flags, reason_code, properties):
-        """Handle MQTT connection."""
+        """Handle MQTT connection. Called from paho's network thread."""
         if reason_code == 0:
             logger.info("Connected to MQTT broker")
             self._mqtt_connected = True
-            # Flush buffered messages
-            asyncio.create_task(self._flush_buffer())
+            # Schedule the async buffer flush on the captured event loop.
+            # asyncio.create_task() would raise RuntimeError when called
+            # from a thread that is not the loop's owner.
+            if self._loop is not None:
+                asyncio.run_coroutine_threadsafe(self._flush_buffer(), self._loop)
         else:
             logger.error(f"MQTT connection failed: {reason_code}")
 
     def _on_mqtt_disconnect(self, client, userdata, reason_code, properties):
-        """Handle MQTT disconnection."""
+        """Handle MQTT disconnection. Called from paho's network thread."""
         logger.warning(f"Disconnected from MQTT broker: {reason_code}")
         self._mqtt_connected = False
 
-        # Reconnect
-        if self._running:
-            asyncio.get_event_loop().call_later(
-                settings.mqtt_reconnect_interval,
-                self._connect_mqtt
+        # Reconnect via the captured loop — asyncio.get_event_loop() is
+        # deprecated in 3.12 and raises when there is no running loop in
+        # the current (non-asyncio) thread.
+        if self._running and self._loop is not None:
+            self._loop.call_soon_threadsafe(
+                lambda: self._loop.call_later(
+                    settings.mqtt_reconnect_interval,
+                    self._connect_mqtt,
+                )
             )
 
     async def _run_opcua_loop(self):
