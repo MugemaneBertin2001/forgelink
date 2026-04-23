@@ -1,6 +1,6 @@
 """ForgeLink JWT Authentication for REST Framework"""
 
-from typing import Set
+from typing import List, Set
 
 from rest_framework.authentication import BaseAuthentication
 
@@ -10,15 +10,28 @@ class JWTUser:
     User object created from JWT payload.
     Compatible with Django's user interface.
 
-    Permissions are resolved from role_code via Django's Role model.
+    Permissions are resolved from role_codes via Django's Role model.
     """
 
+    ADMIN_ROLE_CODE = "FACTORY_ADMIN"
+
     def __init__(self, payload: dict, permissions: Set[str] = None):
+        from apps.core.middleware import JWTAuthenticationMiddleware
+
         self.payload = payload
         self.id = payload.get("sub")
         self.username = payload.get("sub")
         self.email = payload.get("email", "")
-        self.role_code = payload.get("role")  # Single role from IDP
+        # Spring IDP emits a JSON array under "roles"; accept the legacy
+        # singular "role" claim as a fallback for older tokens.
+        self.role_codes: List[str] = JWTAuthenticationMiddleware._extract_role_codes(
+            payload
+        )
+        # role_code preserved for back-compat (audit logs, simple displays):
+        # comma-separated, alphabetically sorted, or None.
+        self.role_code = (
+            ",".join(sorted(self.role_codes)) if self.role_codes else None
+        )
         self.plant_id = payload.get("plant_id")
         self.area_code = payload.get("area")  # Optional area restriction
         self.is_authenticated = True
@@ -27,9 +40,13 @@ class JWTUser:
         # Permissions resolved from Django Role model
         self._permissions = permissions or set()
 
-        # Admin flags based on role
-        self.is_staff = self.role_code == "FACTORY_ADMIN"
-        self.is_superuser = self.role_code == "FACTORY_ADMIN"
+        # Admin flags: user is admin if any of their roles is FACTORY_ADMIN.
+        self.is_staff = self.ADMIN_ROLE_CODE in self.role_codes
+        self.is_superuser = self.ADMIN_ROLE_CODE in self.role_codes
+
+    def has_role(self, role_code: str) -> bool:
+        """Check if the user carries a given role."""
+        return role_code in self.role_codes
 
     @property
     def permissions(self) -> Set[str]:

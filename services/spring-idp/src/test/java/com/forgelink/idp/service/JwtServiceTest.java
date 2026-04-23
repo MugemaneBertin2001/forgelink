@@ -11,6 +11,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -71,6 +73,69 @@ class JwtServiceTest {
         assertThat(claims.get().getSubject()).isEqualTo(user.getId().toString());
         assertThat(claims.get().get("email")).isEqualTo(user.getEmail());
         assertThat(claims.get().get("roles")).isNotNull();
+    }
+
+    @Test
+    void accessToken_producerContract_usesRolesAsJsonArray() {
+        // Pins the producer side of the JWT role-claim contract with Django.
+        // If this test changes, services/django-api/apps/core/tests/test_jwt_contract.py
+        // must change in lockstep. See also JwtService.generateAccessToken.
+        User user = createTestUser();
+        String token = jwtService.generateAccessToken(user);
+
+        Claims claims = jwtService.validateAccessToken(token).orElseThrow();
+
+        // Canonical claim name is "roles" (plural), NEVER "role" (singular).
+        assertThat(claims).containsKey("roles");
+        assertThat(claims).doesNotContainKey("role");
+
+        Object rolesClaim = claims.get("roles");
+        // JJWT deserialises a JSON array back to a Collection (List in practice).
+        assertThat(rolesClaim).isInstanceOf(Collection.class);
+        @SuppressWarnings("unchecked")
+        Collection<String> rolesCollection = (Collection<String>) rolesClaim;
+        assertThat(rolesCollection).containsExactly("FACTORY_ADMIN");
+    }
+
+    @Test
+    void accessToken_producerContract_multiRoleUserEmitsAllRoles() {
+        // Spring IDP supports multi-role users; the contract emits every role.
+        User user = User.builder()
+            .id(UUID.randomUUID())
+            .email("multi@forgelink.local")
+            .passwordHash("$2a$12$test")
+            .plantId("steel-plant-kigali")
+            .roles(Set.of(Role.PLANT_OPERATOR, Role.TECHNICIAN))
+            .enabled(true)
+            .locked(false)
+            .build();
+
+        String token = jwtService.generateAccessToken(user);
+        Claims claims = jwtService.validateAccessToken(token).orElseThrow();
+
+        @SuppressWarnings("unchecked")
+        Collection<String> rolesCollection = (Collection<String>) claims.get("roles");
+        assertThat(rolesCollection)
+            .containsExactlyInAnyOrder("PLANT_OPERATOR", "TECHNICIAN");
+    }
+
+    @Test
+    void accessToken_producerContract_includesEveryClaimDjangoConsumes() {
+        // Freeze the set of claims the Django consumer depends on. See
+        // services/django-api/apps/core/tests/test_jwt_contract.py
+        // TestClaimShapeFreeze for the matching consumer assertion.
+        User user = createTestUser();
+        String token = jwtService.generateAccessToken(user);
+        Claims claims = jwtService.validateAccessToken(token).orElseThrow();
+
+        List<String> requiredClaims = List.of(
+            "sub", "iss", "iat", "exp", "email", "roles", "plant_id"
+        );
+        for (String claim : requiredClaims) {
+            assertThat(claims)
+                .as("claim '%s' must be emitted for Django to consume", claim)
+                .containsKey(claim);
+        }
     }
 
     @Test
