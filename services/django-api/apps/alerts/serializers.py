@@ -31,6 +31,8 @@ class AlertRuleSerializer(serializers.ModelSerializer):
             "severity",
             "notify_slack",
             "slack_channel",
+            "notify_email",
+            "email_recipients",
             "cooldown_minutes",
             "is_active",
             "created_at",
@@ -69,6 +71,7 @@ class AlertSerializer(serializers.ModelSerializer):
             "resolved_at",
             "resolved_by",
             "notified_slack",
+            "notified_email",
             "notified_at",
             "duration_seconds",
         ]
@@ -84,6 +87,7 @@ class AlertSerializer(serializers.ModelSerializer):
             "unit",
             "triggered_at",
             "notified_slack",
+            "notified_email",
             "notified_at",
             "duration_seconds",
         ]

@@ -13,6 +13,23 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
+  # SMTP for the email notification channel. Defaults point at the
+  # mailhog service wired into docker-compose.override.yml — local dev
+  # gets a zero-config web inbox at http://localhost:8025. Production
+  # replaces these with a real provider (Postmark, Mailgun, SES).
+  mail:
+    host: ${SMTP_HOST:mailhog}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    from: ${SMTP_FROM:alerts@forgelink.local}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:false}
+          starttls:
+            enable: ${SMTP_STARTTLS:false}
+
 # Kafka topics
 kafka:
   topics:

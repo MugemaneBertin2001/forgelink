@@ -90,6 +90,19 @@ class AlertRule(models.Model):
         default="#forgelink-alerts",
         help_text="Slack channel for notifications",
     )
+    notify_email = models.BooleanField(
+        default=False,
+        help_text="Dispatch an email when this rule fires",
+    )
+    email_recipients = models.CharField(
+        max_length=512,
+        blank=True,
+        default="",
+        help_text=(
+            "Comma-separated email recipients. Empty when notify_email "
+            "is false. Ignored otherwise."
+        ),
+    )
 
     # Cooldown to prevent alert storms
     cooldown_minutes = models.IntegerField(
@@ -158,8 +171,10 @@ class Alert(models.Model):
     resolved_at = models.DateTimeField(null=True, blank=True)
     resolved_by = models.CharField(max_length=128, blank=True)
 
-    # Notification tracking
+    # Notification tracking. Each channel has its own bool so we can tell,
+    # post-facto, whether Slack succeeded but email failed (or vice versa).
     notified_slack = models.BooleanField(default=False)
+    notified_email = models.BooleanField(default=False)
     notified_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
