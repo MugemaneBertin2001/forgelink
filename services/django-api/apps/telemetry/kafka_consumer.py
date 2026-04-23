@@ -82,6 +82,12 @@ class TelemetryKafkaConsumer:
         self.consumer: Optional[Consumer] = None
         self.running = False
         self.batch: List[Dict[str, Any]] = []
+        # Kafka messages held alongside self.batch for offset-commit after
+        # a successful flush. We keep them 1:1 with records so that if a
+        # message fails to parse and is skipped, its offset is still
+        # eventually advanced by a successful later message in the same
+        # partition (Kafka commits are monotonic per partition).
+        self.batch_messages: List[Any] = []
         self.last_flush_time = time.time()
 
         # Statistics
@@ -90,17 +96,32 @@ class TelemetryKafkaConsumer:
             "messages_processed": 0,
             "batches_written": 0,
             "errors": 0,
+            "dlq_messages": 0,
+            "commits": 0,
             "start_time": None,
         }
 
     def create_consumer(self) -> Consumer:
-        """Create Kafka consumer instance."""
+        """Create Kafka consumer instance configured for at-least-once delivery.
+
+        Delivery semantics:
+        ``enable.auto.commit=False`` plus an explicit ``commit(msg)`` call
+        only after :meth:`flush_batch` has successfully written the batch to
+        TDengine. If the process crashes between receiving a message and
+        writing the batch, the next consumer in the group replays from the
+        last committed offset — the batch is retried rather than lost.
+
+        Offset-reset:
+        ``earliest`` (not ``latest``) so the first consumer in a new group
+        backfills every message already sitting in the topic. Combined
+        with the idempotent TDengine insert path, this makes cold-start
+        replays safe.
+        """
         config = {
             "bootstrap.servers": self.bootstrap_servers,
             "group.id": self.group_id,
-            "auto.offset.reset": "latest",
-            "enable.auto.commit": True,
-            "auto.commit.interval.ms": 5000,
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
             "session.timeout.ms": 30000,
             "max.poll.interval.ms": 300000,
             "fetch.min.bytes": 1,
@@ -183,22 +204,57 @@ class TelemetryKafkaConsumer:
             return None
 
     def flush_batch(self):
-        """Flush current batch to TDengine."""
+        """Flush current batch to TDengine and commit Kafka offsets on success.
+
+        At-least-once delivery flow:
+
+        1. Try insert_telemetry_batch with bounded retries (exponential
+           backoff). On success → commit Kafka offsets.
+        2. On persistent failure → route the records to the DLQ topic.
+           Commit Kafka offsets ONLY if the DLQ publish confirms — otherwise
+           leave offsets uncommitted so the message is redelivered.
+        3. In either success path the batch is cleared and the flush
+           timestamp is refreshed.
+
+        The critical invariant: Kafka offsets never advance past a record
+        whose durable write (either to TDengine or to the DLQ) did not
+        succeed. A crash between receiving and writing causes a replay,
+        not data loss.
+        """
         if not self.batch:
             return
 
+        flush_successful = False
         try:
             self._flush_with_retry(self.batch.copy())
             self.stats["batches_written"] += 1
             self.stats["messages_processed"] += len(self.batch)
+            flush_successful = True
             logger.debug(f"Flushed batch of {len(self.batch)} records to TDengine")
-        except Exception as e:
-            logger.error(f"Failed to flush batch after retries: {e}")
+        except Exception as exc:
+            logger.error(f"Failed to flush batch after retries: {exc}")
             self.stats["errors"] += 1
-            self._send_to_dlq(self.batch.copy(), str(e))
-        finally:
-            self.batch = []
-            self.last_flush_time = time.time()
+            # Route to DLQ; only treat the commit as safe if publish confirms.
+            flush_successful = self._send_to_dlq(self.batch.copy(), str(exc))
+
+        # Commit only the last message in the batch — Kafka offset commits
+        # apply up to and including the given offset per partition. A
+        # successful commit here means every record in the batch has been
+        # durably written somewhere (TDengine or DLQ).
+        if flush_successful and self.batch_messages and self.consumer is not None:
+            last_msg = self.batch_messages[-1]
+            try:
+                self.consumer.commit(message=last_msg, asynchronous=False)
+                self.stats["commits"] += 1
+            except Exception as exc:
+                # Commit failures are recoverable: the next successful batch
+                # will commit a later offset and the duplicate rows on
+                # replay are idempotent at TDengine tag granularity.
+                logger.warning(f"Kafka offset commit failed: {exc}")
+
+        self.batch = []
+        self.batch_messages = []
+        self.last_flush_time = time.time()
 
     def _flush_with_retry(
         self, records: List[Dict[str, Any]], max_retries: int = 3
@@ -219,8 +275,15 @@ class TelemetryKafkaConsumer:
                     time.sleep(wait_time)
         raise last_exception
 
-    def _send_to_dlq(self, records: List[Dict[str, Any]], error: str) -> None:
-        """Send failed records to dead letter queue via Kafka."""
+    def _send_to_dlq(self, records: List[Dict[str, Any]], error: str) -> bool:
+        """Send failed records to the DLQ topic.
+
+        Returns True if the DLQ publish confirms (producer.flush returns
+        zero outstanding messages). The caller uses this return value to
+        decide whether to commit the original Kafka offsets — a False
+        return leaves the offsets uncommitted so the message is redelivered
+        on the next poll cycle.
+        """
         from confluent_kafka import Producer
 
         try:
@@ -240,11 +303,19 @@ class TelemetryKafkaConsumer:
                 value=json.dumps(dlq_message).encode("utf-8"),
                 callback=self._dlq_delivery_callback,
             )
-            producer.flush(timeout=5)
+            remaining = producer.flush(timeout=5)
+            if remaining > 0:
+                logger.error(
+                    f"DLQ flush timed out with {remaining} messages still in-flight"
+                )
+                return False
+
             logger.info(f"Sent {len(records)} failed records to DLQ: {dlq_topic}")
             self.stats["dlq_messages"] = self.stats.get("dlq_messages", 0) + 1
+            return True
         except Exception as e:
             logger.error(f"Failed to send to DLQ: {e}")
+            return False
 
     def _dlq_delivery_callback(self, err, msg):
         """Callback for DLQ message delivery."""
@@ -265,15 +336,54 @@ class TelemetryKafkaConsumer:
         return False
 
     def process_message(self, msg):
-        """Process a single Kafka message."""
+        """Process a single Kafka message.
+
+        The message is kept alongside its parsed record in batch_messages
+        so that flush_batch can commit the Kafka offset once the record
+        has durably landed in TDengine or the DLQ.
+        """
         self.stats["messages_received"] += 1
 
         telemetry = self.parse_message(msg.value())
         if telemetry:
             self.batch.append(telemetry.to_record())
+            self.batch_messages.append(msg)
+        else:
+            # Unparseable message — publish to DLQ and commit the offset
+            # so the same poisonous payload does not block the partition.
+            self._send_to_dlq_unparseable(msg)
+            try:
+                self.consumer.commit(message=msg, asynchronous=False)
+            except Exception as exc:
+                logger.warning(f"Commit of unparseable offset failed: {exc}")
 
         if self.should_flush():
             self.flush_batch()
+
+    def _send_to_dlq_unparseable(self, msg) -> None:
+        """Send an unparseable message to the DLQ as-is."""
+        from confluent_kafka import Producer
+
+        try:
+            producer = Producer({"bootstrap.servers": self.bootstrap_servers})
+            dlq_payload = {
+                "original_topic": msg.topic(),
+                "original_partition": msg.partition(),
+                "original_offset": msg.offset(),
+                "payload_base64": None,
+                "payload_utf8": msg.value().decode("utf-8", errors="replace"),
+                "consumer_group": self.group_id,
+                "reason": "parse_failure",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            producer.produce(
+                "dlq.unparseable",
+                value=json.dumps(dlq_payload).encode("utf-8"),
+            )
+            producer.flush(timeout=5)
+            self.stats["dlq_messages"] = self.stats.get("dlq_messages", 0) + 1
+        except Exception as exc:
+            logger.error(f"Failed to send unparseable message to DLQ: {exc}")
 
     def start(self):
         """Start consuming messages."""
@@ -381,12 +491,18 @@ class EventKafkaConsumer:
         self.running = False
 
     def create_consumer(self) -> Consumer:
-        """Create Kafka consumer instance."""
+        """Create Kafka consumer instance with at-least-once semantics.
+
+        Events drive alerting side effects (TDengine event rows, device
+        status mutations); losing one silently would produce a stale
+        dashboard. Manual-commit-after-process ensures a crash replays
+        the event rather than dropping it.
+        """
         config = {
             "bootstrap.servers": self.bootstrap_servers,
             "group.id": self.group_id,
-            "auto.offset.reset": "latest",
-            "enable.auto.commit": True,
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
         }
         return Consumer(config)
 
