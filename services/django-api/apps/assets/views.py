@@ -10,6 +10,12 @@ from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
 
+from apps.core.permissions import (
+    CanManageAssets,
+    CanViewAssets,
+    HasPermission,
+)
+
 from .models import Area, Cell, Device, DeviceType, Line, MaintenanceRecord, Plant
 from .serializers import (
     AreaMinimalSerializer,
@@ -46,6 +52,14 @@ class PlantViewSet(viewsets.ModelViewSet):
 
     Provides CRUD operations for plants.
     """
+
+    # CanManageAssets gates by HTTP method:
+    #   GET    -> assets.view
+    #   POST   -> assets.create
+    #   PUT    -> assets.update
+    #   PATCH  -> assets.update
+    #   DELETE -> assets.delete
+    permission_classes = [CanManageAssets]
 
     queryset = Plant.objects.all()
     serializer_class = PlantSerializer
@@ -121,6 +135,8 @@ class AreaViewSet(viewsets.ModelViewSet):
     ViewSet for area management.
     """
 
+    permission_classes = [CanManageAssets]
+
     queryset = Area.objects.select_related("plant").all()
     serializer_class = AreaSerializer
     filter_backends = [
@@ -182,6 +198,8 @@ class LineViewSet(viewsets.ModelViewSet):
     ViewSet for line management.
     """
 
+    permission_classes = [CanManageAssets]
+
     queryset = Line.objects.select_related("area__plant").all()
     serializer_class = LineSerializer
     filter_backends = [
@@ -209,6 +227,8 @@ class CellViewSet(viewsets.ModelViewSet):
     """
     ViewSet for cell management.
     """
+
+    permission_classes = [CanManageAssets]
 
     queryset = Cell.objects.select_related("line__area__plant").all()
     serializer_class = CellSerializer
@@ -238,6 +258,8 @@ class DeviceTypeViewSet(viewsets.ModelViewSet):
     ViewSet for device type management.
     """
 
+    permission_classes = [CanManageAssets]
+
     queryset = DeviceType.objects.all()
     serializer_class = DeviceTypeSerializer
     lookup_field = "code"
@@ -264,6 +286,8 @@ class DeviceViewSet(viewsets.ModelViewSet):
     Provides CRUD operations plus status updates,
     threshold management, and maintenance records.
     """
+
+    permission_classes = [CanManageAssets]
 
     queryset = Device.objects.select_related(
         "device_type", "cell__line__area__plant"
@@ -449,6 +473,14 @@ class MaintenanceRecordViewSet(viewsets.ModelViewSet):
     ViewSet for maintenance record management.
     """
 
+    # Reads gated on assets.view; writes require the dedicated maintenance
+    # permission assets.manage_maintenance (PLANT_OPERATOR has it; VIEWER
+    # and TECHNICIAN do not).
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [CanViewAssets()]
+        return [HasPermission("assets.manage_maintenance")]
+
     queryset = MaintenanceRecord.objects.select_related("device").all()
     serializer_class = MaintenanceRecordSerializer
     filter_backends = [
@@ -476,6 +508,8 @@ class AssetDashboardView(APIView):
     """
     Dashboard endpoint for asset overview.
     """
+
+    permission_classes = [CanViewAssets]
 
     def get(self, request):
         """Get asset dashboard data."""

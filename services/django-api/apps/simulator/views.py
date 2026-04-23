@@ -6,6 +6,8 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.core.permissions import CanControlSimulator, HasPermission
+
 from .models import (
     DeviceProfile,
     SimulatedDevice,
@@ -34,13 +36,14 @@ from .serializers import (
 class DeviceProfileViewSet(viewsets.ModelViewSet):
     """
     ViewSet for device profile templates.
-
-    list: Get all device profiles
-    retrieve: Get a specific profile
-    create: Create a new profile template
-    update: Update a profile
-    delete: Delete a profile (only if no devices use it)
     """
+
+    # Reads need simulator.view; writes require the profile-management
+    # permission that only FACTORY_ADMIN carries.
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [HasPermission("simulator.view")]
+        return [HasPermission("simulator.manage_profiles")]
 
     queryset = DeviceProfile.objects.all()
     serializer_class = DeviceProfileSerializer
@@ -53,9 +56,9 @@ class DeviceProfileViewSet(viewsets.ModelViewSet):
 class SimulatedPLCViewSet(viewsets.ModelViewSet):
     """
     ViewSet for simulated PLCs.
-
-    Includes actions for controlling PLC simulation state.
     """
+
+    permission_classes = [CanControlSimulator]
 
     queryset = SimulatedPLC.objects.prefetch_related("devices").all()
     serializer_class = SimulatedPLCSerializer
@@ -141,6 +144,8 @@ class SimulatedDeviceViewSet(viewsets.ModelViewSet):
 
     Includes actions for controlling device state and injecting faults.
     """
+
+    permission_classes = [CanControlSimulator]
 
     queryset = SimulatedDevice.objects.select_related("plc", "profile").all()
     serializer_class = SimulatedDeviceSerializer
@@ -311,6 +316,8 @@ class SimulationSessionViewSet(viewsets.ModelViewSet):
     Manage grouped simulation runs with start/stop/pause controls.
     """
 
+    permission_classes = [CanControlSimulator]
+
     queryset = SimulationSession.objects.prefetch_related("devices", "plcs").all()
     serializer_class = SimulationSessionSerializer
     search_fields = ["name", "description"]
@@ -405,6 +412,8 @@ class SimulationEventViewSet(viewsets.ModelViewSet):
     View and acknowledge events generated during simulation.
     """
 
+    permission_classes = [CanControlSimulator]
+
     queryset = SimulationEvent.objects.select_related("device", "plc", "session").all()
     serializer_class = SimulationEventSerializer
     search_fields = ["message", "device__device_id", "plc__name"]
@@ -477,6 +486,8 @@ class SimulatorDashboardViewSet(viewsets.ViewSet):
 
     Provides aggregated statistics and summaries.
     """
+
+    permission_classes = [HasPermission("simulator.view")]
 
     @action(detail=False, methods=["get"])
     def overview(self, request):

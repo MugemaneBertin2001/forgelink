@@ -41,7 +41,9 @@ class HasPermission(BasePermission):
         self.permission_code = permission_code
 
     def has_permission(self, request, view):
-        if not hasattr(request, "user") or not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
 
         # Use permission_code if provided, otherwise look at view attribute
@@ -65,7 +67,9 @@ class HasAnyPermission(BasePermission):
     message = "Permission denied."
 
     def has_permission(self, request, view):
-        if not hasattr(request, "user") or not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_any_permission"):
             return False
 
         required = getattr(view, "required_permissions", [])
@@ -88,7 +92,9 @@ class HasAllPermissions(BasePermission):
     message = "Permission denied."
 
     def has_permission(self, request, view):
-        if not hasattr(request, "user") or not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_any_permission"):
             return False
 
         required = getattr(view, "required_permissions", [])
@@ -109,7 +115,9 @@ class CanViewAssets(BasePermission):
     message = "Assets view permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("assets.view")
 
@@ -120,7 +128,9 @@ class CanManageAssets(BasePermission):
     message = "Assets management permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
 
         if request.method in ["GET", "HEAD", "OPTIONS"]:
@@ -141,7 +151,9 @@ class CanViewAlerts(BasePermission):
     message = "Alerts view permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("alerts.view")
 
@@ -152,7 +164,9 @@ class CanAcknowledgeAlerts(BasePermission):
     message = "Alert acknowledgement permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("alerts.acknowledge")
 
@@ -163,7 +177,9 @@ class CanResolveAlerts(BasePermission):
     message = "Alert resolution permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("alerts.resolve")
 
@@ -174,7 +190,9 @@ class CanManageAlertRules(BasePermission):
     message = "Alert rule management permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
 
         if request.method in ["GET", "HEAD", "OPTIONS"]:
@@ -195,7 +213,9 @@ class CanViewTelemetry(BasePermission):
     message = "Telemetry view permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("telemetry.view")
 
@@ -206,7 +226,9 @@ class CanExportTelemetry(BasePermission):
     message = "Telemetry export permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("telemetry.export")
 
@@ -217,7 +239,9 @@ class CanControlSimulator(BasePermission):
     message = "Simulator control permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
 
         if request.method in ["GET", "HEAD", "OPTIONS"]:
@@ -232,7 +256,9 @@ class CanManageUsers(BasePermission):
     message = "User management permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
         return request.user.has_permission("admin.manage_users")
 
@@ -243,7 +269,9 @@ class CanManageRoles(BasePermission):
     message = "Role management permission required."
 
     def has_permission(self, request, view):
-        if not request.user:
+        if not getattr(request.user, "is_authenticated", False):
+            return False
+        if not hasattr(request.user, "has_permission"):
             return False
 
         if request.method in ["GET", "HEAD", "OPTIONS"]:
