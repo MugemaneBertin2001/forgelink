@@ -1,0 +1,406 @@
+# ForgeLink NetworkPolicy allow-list
+#
+# Pairs with default-deny.yaml: the default-deny policy isolates every
+# pod in the forgelink namespace (both ingress and egress) except for
+# DNS resolution. These allow-list policies open exactly the pod-to-pod
+# paths the platform actually uses and nothing else.
+#
+# Design rules applied throughout:
+#
+# 1. Egress is specified on the CALLER side, ingress on the CALLEE
+#    side. Both must match for traffic to flow.
+# 2. Selectors use app.kubernetes.io/name labels only — never IP
+#    literals — so the policies survive Pod re-scheduling and CNI
+#    churn.
+# 3. Port numbers match the internal cluster port, not the host-port
+#    mapping.
+# 4. ingress-nginx traffic is allowed from the ingress-nginx namespace
+#    by namespaceSelector so the policies work with any nginx install.
+# 5. Egress to the wider internet (Slack webhook, future SMTP) is
+#    limited to the service that needs it, on TCP/443, with a TODO
+#    for tighter CIDR scoping once a WAF is in front of the demo.
+#
+# A netshoot-driven verification script is in
+# scripts/test-networkpolicy.sh and exercises every rule.
+
+---
+# 1. Inter-pod DNS already allowed by default-deny.yaml#allow-dns;
+#    nothing else needed here.
+
+---
+# 2. ingress-nginx → forgelink-api and forgelink-idp (north-south).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-api
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-idp
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-idp
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# 3. forgelink-api ← everything it calls.
+#    API → Postgres, Redis, Kafka, TDengine, EMQX, IDP (JWKS fetch).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-egress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-api
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - { protocol: TCP, port: 9092 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tdengine
+      ports:
+        - { protocol: TCP, port: 6030 }
+        - { protocol: TCP, port: 6041 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: emqx
+      ports:
+        - { protocol: TCP, port: 1883 }
+        - { protocol: TCP, port: 8883 }  # future mTLS listener; see zero-trust.md
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: forgelink-idp
+      ports:
+        - { protocol: TCP, port: 8080 }
+
+---
+# 4. Per-callee ingress policies mirror the egress above.
+#    Keeping these separate from egress makes "who can talk to X"
+#    trivially greppable (`kubectl get netpol | grep postgres`).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-ingress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - forgelink-api
+                  - forgelink-idp
+                  - forgelink-celery-worker
+                  - forgelink-celery-beat
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-ingress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - forgelink-api
+                  - forgelink-idp
+                  - forgelink-celery-worker
+                  - forgelink-celery-beat
+                  - forgelink-kafka-consumer
+      ports:
+        - { protocol: TCP, port: 6379 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-ingress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - forgelink-api
+                  - forgelink-notification
+                  - forgelink-kafka-consumer
+                  - forgelink-celery-worker
+      ports:
+        - { protocol: TCP, port: 9092 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tdengine-ingress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: tdengine
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - forgelink-api
+                  - forgelink-celery-worker
+                  - forgelink-kafka-consumer
+      ports:
+        - { protocol: TCP, port: 6030 }
+        - { protocol: TCP, port: 6041 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-emqx-ingress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: emqx
+  policyTypes: [Ingress]
+  ingress:
+    # MQTT from Django API and any future mqtt-bridge pod in the
+    # forgelink namespace, plus dashboard access from ingress-nginx.
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - forgelink-api
+      ports:
+        - { protocol: TCP, port: 1883 }
+        - { protocol: TCP, port: 8883 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - { protocol: TCP, port: 18083 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-idp-ingress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-idp
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - forgelink-api
+      ports:
+        - { protocol: TCP, port: 8080 }
+
+---
+# 5. Celery worker + beat — same infra dependencies as API minus EMQX
+#    and IDP; they don't need north-south ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-celery-worker-egress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-celery-worker
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - { protocol: TCP, port: 6379 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - { protocol: TCP, port: 9092 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tdengine
+      ports:
+        - { protocol: TCP, port: 6030 }
+        - { protocol: TCP, port: 6041 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-celery-beat-egress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-celery-beat
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - { protocol: TCP, port: 6379 }
+
+---
+# 6. Kafka → TDengine consumer pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-consumer-egress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-kafka-consumer
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - { protocol: TCP, port: 9092 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: tdengine
+      ports:
+        - { protocol: TCP, port: 6030 }
+        - { protocol: TCP, port: 6041 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - { protocol: TCP, port: 6379 }
+
+---
+# 7. Notification service → Kafka (consume alerts) + external Slack.
+#    External egress is open on 443 only and scoped by port; a future
+#    commit should narrow this to specific CIDRs once the WAF / egress
+#    proxy is in place.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-egress
+  namespace: forgelink
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: forgelink-notification
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kafka
+      ports:
+        - { protocol: TCP, port: 9092 }
+    # External egress for Slack webhook (hooks.slack.com — Cloudflare
+    # fronted; no stable IP range published by Slack). Scoped to 443
+    # only. TODO: add a CIDR filter or egress proxy in v2.0.0.
+    - to:
+        - namespaceSelector: {}
+          podSelector: {}
+      ports:
+        - { protocol: TCP, port: 443 }
+      # The above namespaceSelector: {} matches all namespaces including
+      # outside-the-cluster (via the CNI's egress handling). Some CNIs
+      # require an explicit "to: []" with only a ports field for
+      # external egress — if that is your environment, duplicate this
+      # block without the to-selector.
