@@ -10,6 +10,13 @@ from confluent_kafka import Producer
 from prometheus_client import Counter, Histogram, start_http_server
 
 from bridge.config import settings
+from bridge.correlation import (
+    KAFKA_HEADER as CORRELATION_KAFKA_HEADER,
+    bind as bind_correlation,
+    clear as clear_correlation,
+    get as get_correlation,
+    new_correlation_id,
+)
 from bridge.health import health_status, start_health_server
 
 logger = logging.getLogger(__name__)
@@ -124,11 +131,17 @@ class MQTTBridge:
 
     def _on_message(self, client, userdata, msg):
         """Handle incoming MQTT message."""
+        # Fresh correlation ID per MQTT message. It rides into Kafka
+        # as a header so the Django consumer and the Spring
+        # notification service can continue the same trace.
+        bind_correlation(new_correlation_id())
         try:
             self._process_message(msg.topic, msg.payload)
         except Exception as e:
             logger.error(f"Error processing message: {e}")
             PARSE_ERRORS.inc()
+        finally:
+            clear_correlation()
 
     def _process_message(self, topic: str, payload: bytes):
         """Process a single MQTT message."""
@@ -183,10 +196,17 @@ class MQTTBridge:
         """Publish a message to Kafka."""
         try:
             with KAFKA_LATENCY.time():
+                correlation_id = get_correlation()
+                headers = (
+                    [(CORRELATION_KAFKA_HEADER, correlation_id.encode("utf-8"))]
+                    if correlation_id
+                    else []
+                )
                 self.kafka_producer.produce(
                     topic=topic,
                     key=key.encode('utf-8'),
                     value=json.dumps(data).encode('utf-8'),
+                    headers=headers,
                     callback=self._kafka_delivery_callback
                 )
                 self.kafka_producer.poll(0)
@@ -204,9 +224,16 @@ class MQTTBridge:
                 'original_topic': topic,
                 'payload': payload.decode('utf-8', errors='replace'),
             }
+            correlation_id = get_correlation()
+            headers = (
+                [(CORRELATION_KAFKA_HEADER, correlation_id.encode("utf-8"))]
+                if correlation_id
+                else []
+            )
             self.kafka_producer.produce(
                 topic='dlq.unparseable',
                 value=json.dumps(data).encode('utf-8'),
+                headers=headers,
             )
             self.kafka_producer.poll(0)
         except Exception as e:

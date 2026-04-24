@@ -2,14 +2,20 @@ package com.forgelink.notification.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgelink.notification.dto.AlertEvent;
+import com.forgelink.notification.logging.CorrelationId;
 import com.forgelink.notification.service.EmailNotificationService;
 import com.forgelink.notification.service.SlackNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 /**
  * Kafka consumer for alert events from Django.
@@ -35,29 +41,50 @@ public class AlertEventConsumer {
         containerFactory = "kafkaListenerContainerFactory"
     )
     public void consumeAlertEvent(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
-        log.debug("Received alert event: key={}", record.key());
+        // Continue the cross-service trace: Django's AlertService attaches
+        // x-correlation-id as a Kafka header when it produces the event.
+        // If the header is absent (legacy events, manual injections) we
+        // mint a fresh UUID so slack/email dispatch logs are still
+        // groupable. MDC.clear in finally so long-running consumer
+        // threads don't leak IDs between messages.
+        String correlationId = extractCorrelationId(record);
+        MDC.put(CorrelationId.MDC_KEY, correlationId);
 
-        AlertEvent event = objectMapper.readValue(record.value(), AlertEvent.class);
+        try {
+            log.debug("Received alert event: key={}", record.key());
 
-        log.info("Processing alert: id={}, severity={}, device={}, slack={}, email={}",
-            event.getAlertId(), event.getSeverity(), event.getDeviceId(),
-            Boolean.TRUE.equals(event.getNotifySlack()),
-            Boolean.TRUE.equals(event.getNotifyEmail()));
+            AlertEvent event = objectMapper.readValue(record.value(), AlertEvent.class);
 
-        // Slack channel. Default-on when the field is unset to preserve
-        // the historical behaviour (before the per-rule flag existed).
-        if (event.getNotifySlack() == null || event.getNotifySlack()) {
-            slackService.sendAlert(event);
+            log.info("Processing alert: id={}, severity={}, device={}, slack={}, email={}",
+                event.getAlertId(), event.getSeverity(), event.getDeviceId(),
+                Boolean.TRUE.equals(event.getNotifySlack()),
+                Boolean.TRUE.equals(event.getNotifyEmail()));
+
+            // Slack channel. Default-on when the field is unset to preserve
+            // the historical behaviour (before the per-rule flag existed).
+            if (event.getNotifySlack() == null || event.getNotifySlack()) {
+                slackService.sendAlert(event);
+            }
+
+            // Email channel. Strictly opt-in — the rule must have
+            // notify_email=true AND a non-empty recipients list.
+            if (Boolean.TRUE.equals(event.getNotifyEmail())
+                    && event.getEmailRecipients() != null
+                    && !event.getEmailRecipients().isEmpty()) {
+                emailService.sendAlert(event, event.getEmailRecipients());
+            }
+
+            ack.acknowledge();
+        } finally {
+            MDC.clear();
         }
+    }
 
-        // Email channel. Strictly opt-in — the rule must have
-        // notify_email=true AND a non-empty recipients list.
-        if (Boolean.TRUE.equals(event.getNotifyEmail())
-                && event.getEmailRecipients() != null
-                && !event.getEmailRecipients().isEmpty()) {
-            emailService.sendAlert(event, event.getEmailRecipients());
+    private static String extractCorrelationId(ConsumerRecord<String, String> record) {
+        Header header = record.headers().lastHeader(CorrelationId.HEADER);
+        if (header != null && header.value() != null) {
+            return new String(header.value(), StandardCharsets.UTF_8);
         }
-
-        ack.acknowledge();
+        return UUID.randomUUID().toString();
     }
 }
