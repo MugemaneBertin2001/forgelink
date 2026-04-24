@@ -69,8 +69,11 @@ logging:
   level:
     root: INFO
     com.forgelink: DEBUG
+  # %X{correlation_id:-none} pulls the MDC key CorrelationIdFilter
+  # sets per request. Without this any log emitted during auth is
+  # orphaned — auth is the most common thing ops need to grep by ID.
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{correlation_id:-none}] [%thread] %logger{36} - %msg%n"
 
 ---
 # Development profile

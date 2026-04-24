@@ -204,10 +204,26 @@ class AlertService:
             }
 
             producer = AlertService.get_kafka_producer()
+            # Attach the request-scoped correlation ID as a Kafka
+            # header so the notification service can resume the trace
+            # on the other side. Empty list when running outside an
+            # HTTP request (e.g. Celery beat) — consumers handle that.
+            from apps.core.correlation import (
+                KAFKA_HEADER,
+                get_correlation_id,
+            )
+
+            correlation_id = get_correlation_id()
+            headers = (
+                [(KAFKA_HEADER.decode(), correlation_id.encode())]
+                if correlation_id
+                else []
+            )
             producer.produce(
                 topic="alerts.notifications",
                 key=str(alert.id),
                 value=json.dumps(event),
+                headers=headers,
                 callback=AlertService._delivery_callback,
             )
             producer.poll(0)  # Trigger callbacks

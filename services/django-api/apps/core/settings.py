@@ -167,6 +167,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    # Correlation ID must be bound into structlog contextvars BEFORE
+    # any other middleware logs, auths, rate-limits, or audits — every
+    # subsequent log line in the request scope needs it.
+    "apps.core.correlation.CorrelationIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -397,22 +401,33 @@ TELEMETRY = {
 }
 
 # Logging
+#
+# JSON output in both dev and prod so correlation IDs survive the
+# `docker compose logs` pipe and grep-for-trace flows stay the same
+# locally as in production. The ``foreign_pre_chain`` is what makes
+# plain ``logging.getLogger(...)`` calls (Django, DRF, celery) also
+# inherit ``correlation_id`` from the structlog contextvars — without
+# it only code using ``structlog.get_logger`` sees the trace.
+import structlog as _structlog  # noqa: E402
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "json": {
             "()": "structlog.stdlib.ProcessorFormatter",
-            "processor": "structlog.processors.JSONRenderer()",
-        },
-        "console": {
-            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+            "processor": _structlog.processors.JSONRenderer(),
+            "foreign_pre_chain": [
+                _structlog.contextvars.merge_contextvars,
+                _structlog.processors.add_log_level,
+                _structlog.processors.TimeStamper(fmt="iso", utc=True),
+            ],
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "console" if DEBUG else "json",
+            "formatter": "json",
         },
     },
     "root": {

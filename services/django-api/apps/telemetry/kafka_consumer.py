@@ -344,6 +344,24 @@ class TelemetryKafkaConsumer:
         """
         self.stats["messages_received"] += 1
 
+        # Continue the cross-service trace if the producer attached an
+        # x-correlation-id header. Falls back to a per-message UUID so
+        # batch failures can still be grepped by a single ID.
+        import uuid
+
+        from structlog.contextvars import bind_contextvars, clear_contextvars
+
+        from apps.core.correlation import KAFKA_HEADER
+
+        clear_contextvars()
+        correlation_id = None
+        for key, value in msg.headers() or []:
+            key_bytes = key.encode() if isinstance(key, str) else key
+            if key_bytes == KAFKA_HEADER and value:
+                correlation_id = value.decode() if isinstance(value, bytes) else value
+                break
+        bind_contextvars(correlation_id=correlation_id or str(uuid.uuid4()))
+
         telemetry = self.parse_message(msg.value())
         if telemetry:
             self.batch.append(telemetry.to_record())

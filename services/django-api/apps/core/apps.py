@@ -11,3 +11,10 @@ class CoreConfig(AppConfig):
         # the generated OpenAPI doc documents the Bearer flow instead of
         # leaving every endpoint unauthenticated.
         from apps.core import schema  # noqa: F401
+
+        # Initialize structlog once at process startup so every module's
+        # structlog.get_logger() call emits JSON with the correlation_id
+        # merged in via contextvars.
+        from apps.core.correlation import configure_structlog
+
+        configure_structlog()

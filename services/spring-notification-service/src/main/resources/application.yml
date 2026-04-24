@@ -69,3 +69,10 @@ logging:
     root: INFO
     com.forgelink: DEBUG
     org.apache.kafka: WARN
+  # Include the correlation_id MDC value inline with every log line so
+  # ``docker compose logs -f forgelink-notification | grep <id>``
+  # returns the complete trace for one alert across slack + email
+  # dispatch. AlertEventConsumer puts the value into MDC after reading
+  # the x-correlation-id Kafka header.
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{correlation_id:-none}] %logger{36} - %msg%n"
