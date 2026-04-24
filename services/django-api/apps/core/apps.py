@@ -7,5 +7,7 @@ class CoreConfig(AppConfig):
     verbose_name = "ForgeLink Core"
 
     def ready(self):
-        # Import signals if needed
-        pass
+        # Registers the JWTAuthentication scheme with drf-spectacular so
+        # the generated OpenAPI doc documents the Bearer flow instead of
+        # leaving every endpoint unauthenticated.
+        from apps.core import schema  # noqa: F401
