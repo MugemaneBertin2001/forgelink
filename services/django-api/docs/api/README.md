@@ -35,24 +35,32 @@ Commit the result. CI fails if you skip this.
 `apps/audit`. Bearer auth is documented via the JWTAuthentication
 extension in `apps/core/schema.py`.
 
-**Not yet**: nine `APIView`-based endpoints fall back to an empty
-response shape because they return raw dicts rather than
-serializer-driven responses:
+The nine `APIView` / `ViewSet` endpoints that previously fell
+back to an empty response shape now carry explicit
+`@extend_schema` annotations:
 
-- `AlertStatsView`
-- `AreaViewSet` (telemetry)
-- `AssetDashboardView`
-- `PlantDashboardView`
-- `SimulatorDashboardViewSet`
-- `TDengineSchemaView`
-- `TelemetryEventView`
-- `TelemetryViewSet`
-- `slack_webhook`
+- `AlertStatsView` — typed via `AlertStatsSerializer`
+- `AreaViewSet` (telemetry) — `OpenApiTypes.OBJECT` per action
+- `AssetDashboardView` — `OpenApiTypes.OBJECT`
+- `PlantDashboardView` — `OpenApiTypes.OBJECT`
+- `SimulatorDashboardViewSet` — `OpenApiTypes.OBJECT`
+- `TDengineSchemaView` — inline `{message: str}`
+- `TelemetryEventView` — `TelemetryEventSerializer` in, `{message}` out
+- `TelemetryViewSet` — `OpenApiTypes.OBJECT` per action
+- `slack_webhook` — inline `{ok?: bool, challenge?: str}`
 
-Closing each of these requires an `@extend_schema(responses=...)`
-hint on the view; the spec otherwise lists them (paths + params)
-but an SDK will see the response as `{}`. Tracked for the next
-productization iteration.
+The dashboard-style endpoints that roll up ad-hoc fields are
+documented as generic objects on purpose — the UI iterates fast
+on those shapes, and a fake-precise SDK binding would be worse
+than a loose one. Endpoints with stable shapes bind to real
+serializers.
+
+Spectacular still emits two cosmetic `unable to guess serializer`
+warnings for `TelemetryViewSet` and `SimulatorDashboardViewSet`
+because both are bare `ViewSet`s with only `@action` methods (no
+standard `list` / `retrieve`). Each action still generates
+correct spec output; the warning refers to the router's synthetic
+collection endpoint that doesn't actually exist.
 
 **Not in scope for OpenAPI**: the GraphQL surface. GraphQL has its
 own self-describing schema exposed at `/graphql/` with GraphiQL; an
