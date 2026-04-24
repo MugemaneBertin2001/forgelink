@@ -679,6 +679,12 @@ paths:
     get:
       operationId: alerts_stats_retrieve
       description: Get alert statistics.
+      parameters:
+      - in: query
+        name: hours
+        schema:
+          type: integer
+        description: Look-back window in hours (default 24).
       tags:
       - alerts
       security:
@@ -686,7 +692,11 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertStats'
+          description: ''
   /api/assets/areas/:
     get:
       operationId: assets_areas_list
@@ -1130,7 +1140,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/assets/device-types/:
     get:
       operationId: assets_device_types_list
@@ -2607,7 +2622,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/simulator/dashboard/live_values/:
     get:
       operationId: simulator_dashboard_live_values_retrieve
@@ -2619,7 +2639,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/simulator/dashboard/overview/:
     get:
       operationId: simulator_dashboard_overview_retrieve
@@ -2631,7 +2656,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/simulator/dashboard/reset/:
     post:
       operationId: simulator_dashboard_reset_create
@@ -2643,7 +2673,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/simulator/dashboard/start_all/:
     post:
       operationId: simulator_dashboard_start_all_create
@@ -2655,7 +2690,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/simulator/dashboard/stop_all/:
     post:
       operationId: simulator_dashboard_stop_all_create
@@ -2667,7 +2707,12 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/simulator/devices/:
     get:
       operationId: simulator_devices_list
@@ -4199,6 +4244,7 @@ paths:
         name: area
         schema:
           type: string
+        description: Area code (e.g. melt-shop, continuous-casting).
         required: true
       tags:
       - telemetry
@@ -4207,7 +4253,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/areas/{area}/overview/:
     get:
       operationId: telemetry_areas_overview_retrieve
@@ -4217,6 +4274,7 @@ paths:
         name: area
         schema:
           type: string
+        description: Area code (e.g. melt-shop, continuous-casting).
         required: true
       tags:
       - telemetry
@@ -4225,7 +4283,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/dashboard/:
     get:
       operationId: telemetry_dashboard_retrieve
@@ -4237,7 +4306,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/compare/:
     post:
       operationId: telemetry_data_compare_create
@@ -4258,7 +4338,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/device/{device_id}/anomalies/:
     get:
       operationId: telemetry_data_device_anomalies_retrieve
@@ -4281,7 +4372,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/device/{device_id}/history/:
     get:
       operationId: telemetry_data_device_history_retrieve
@@ -4307,7 +4409,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/device/{device_id}/latest/:
     get:
       operationId: telemetry_data_device_latest_retrieve
@@ -4325,7 +4438,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/device/{device_id}/stats/:
     get:
       operationId: telemetry_data_device_stats_retrieve
@@ -4347,7 +4471,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/latest/:
     get:
       operationId: telemetry_data_latest_retrieve
@@ -4364,7 +4499,18 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/data/record/:
     post:
       operationId: telemetry_data_record_create
@@ -4391,19 +4537,52 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/events/:
     post:
       operationId: telemetry_events_create
       description: Record a telemetry event.
       tags:
       - telemetry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryEventRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TelemetryEventRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TelemetryEventRequest'
+        required: true
       security:
       - BearerAuth: []
       - BearerAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/telemetry/schema/init/:
     post:
       operationId: telemetry_schema_init_create
@@ -4415,24 +4594,56 @@ paths:
       - BearerAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
   /api/webhooks/slack/:
     post:
       operationId: webhooks_slack_create
-      description: |-
-        Handle Slack event callbacks.
-
-        Processes incoming Slack events for interactive actions
-        like alert acknowledgement from Slack messages.
+      description: Slack webhook endpoint — accepts event callbacks, interactive message
+        actions, and block-kit action payloads. Signature is verified against SLACK_SIGNING_SECRET;
+        requests without a valid v0 signature return 401.
       tags:
       - webhooks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
       security:
       - BearerAuth: []
       - BearerAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlackWebhookResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlackSignatureError'
+          description: ''
 components:
   schemas:
     ActionEnum:
@@ -4853,6 +5064,28 @@ components:
         * `medium` - Medium
         * `low` - Low
         * `info` - Info
+    AlertStats:
+      type: object
+      description: Serializer for alert statistics.
+      properties:
+        period_hours:
+          type: integer
+        total:
+          type: integer
+        active:
+          type: integer
+        by_severity:
+          type: object
+          additionalProperties: {}
+        by_status:
+          type: object
+          additionalProperties: {}
+      required:
+      - active
+      - by_severity
+      - by_status
+      - period_hours
+      - total
     AlertStatusEnum:
       enum:
       - active
@@ -6198,28 +6431,13 @@ components:
       - code
       - default_unit
       - name
-    EventTypeEnum:
-      enum:
-      - threshold_high
-      - threshold_low
-      - critical_high
-      - critical_low
-      - device_fault
-      - device_recovery
-      - plc_offline
-      - plc_online
-      - rate_of_change
-      type: string
-      description: |-
-        * `threshold_high` - High Threshold Exceeded
-        * `threshold_low` - Low Threshold Exceeded
-        * `critical_high` - Critical High
-        * `critical_low` - Critical Low
-        * `device_fault` - Device Fault
-        * `device_recovery` - Device Recovery
-        * `plc_offline` - PLC Offline
-        * `plc_online` - PLC Online
-        * `rate_of_change` - Abnormal Rate of Change
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
     FaultTypeEnum:
       enum:
       - none
@@ -6558,6 +6776,13 @@ components:
         * `calibration` - Calibration
         * `inspection` - Inspection
         * `replacement` - Replacement
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
     PaginatedAlertHistoryList:
       type: object
       required:
@@ -7492,7 +7717,7 @@ components:
       description: Serializer for simulation events.
       properties:
         event_type:
-          $ref: '#/components/schemas/EventTypeEnum'
+          $ref: '#/components/schemas/SimulationEventEventTypeEnum'
         severity:
           $ref: '#/components/schemas/SimulationEventSeverityEnum'
         message:
@@ -8306,7 +8531,7 @@ components:
           format: uuid
           readOnly: true
         event_type:
-          $ref: '#/components/schemas/EventTypeEnum'
+          $ref: '#/components/schemas/SimulationEventEventTypeEnum'
         severity:
           $ref: '#/components/schemas/SimulationEventSeverityEnum'
         message:
@@ -8366,12 +8591,34 @@ components:
       - message
       - plc_name
       - severity
+    SimulationEventEventTypeEnum:
+      enum:
+      - threshold_high
+      - threshold_low
+      - critical_high
+      - critical_low
+      - device_fault
+      - device_recovery
+      - plc_offline
+      - plc_online
+      - rate_of_change
+      type: string
+      description: |-
+        * `threshold_high` - High Threshold Exceeded
+        * `threshold_low` - Low Threshold Exceeded
+        * `critical_high` - Critical High
+        * `critical_low` - Critical Low
+        * `device_fault` - Device Fault
+        * `device_recovery` - Device Recovery
+        * `plc_offline` - PLC Offline
+        * `plc_online` - PLC Online
+        * `rate_of_change` - Abnormal Rate of Change
     SimulationEventRequest:
       type: object
       description: Serializer for simulation events.
       properties:
         event_type:
-          $ref: '#/components/schemas/EventTypeEnum'
+          $ref: '#/components/schemas/SimulationEventEventTypeEnum'
         severity:
           $ref: '#/components/schemas/SimulationEventSeverityEnum'
         message:
@@ -8590,6 +8837,94 @@ components:
           maxLength: 100
       required:
       - name
+    SlackSignatureError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    SlackWebhookResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        challenge:
+          type: string
+    TelemetryEventEventTypeEnum:
+      enum:
+      - threshold_high
+      - threshold_low
+      - critical_high
+      - critical_low
+      - device_fault
+      - device_recovery
+      - rate_of_change
+      type: string
+      description: |-
+        * `threshold_high` - threshold_high
+        * `threshold_low` - threshold_low
+        * `critical_high` - critical_high
+        * `critical_low` - critical_low
+        * `device_fault` - device_fault
+        * `device_recovery` - device_recovery
+        * `rate_of_change` - rate_of_change
+    TelemetryEventRequest:
+      type: object
+      description: Serializer for telemetry events.
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        plant:
+          type: string
+          minLength: 1
+          maxLength: 32
+        area:
+          type: string
+          minLength: 1
+          maxLength: 32
+        event_type:
+          $ref: '#/components/schemas/TelemetryEventEventTypeEnum'
+        severity:
+          $ref: '#/components/schemas/TelemetryEventSeverityEnum'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 512
+        value:
+          type: number
+          format: double
+          nullable: true
+        threshold:
+          type: number
+          format: double
+          nullable: true
+        ts:
+          type: string
+          format: date-time
+      required:
+      - area
+      - device_id
+      - event_type
+      - message
+      - plant
+      - severity
+    TelemetryEventSeverityEnum:
+      enum:
+      - critical
+      - high
+      - medium
+      - low
+      - info
+      type: string
+      description: |-
+        * `critical` - critical
+        * `high` - high
+        * `medium` - medium
+        * `low` - low
+        * `info` - info
   securitySchemes:
     BearerAuth:
       type: http

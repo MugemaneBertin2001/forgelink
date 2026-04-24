@@ -6,6 +6,9 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
+
 from apps.core.permissions import CanControlSimulator, HasPermission
 
 from .models import (
@@ -480,6 +483,15 @@ class SimulationEventViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema(
+    # Aggregated counts and status rollups; see `overview` action for
+    # the field set. Documented as a generic object because the UI
+    # adds new rollup keys frequently.
+    # NB: spectacular emits a cosmetic "unable to guess serializer"
+    # warning because this ViewSet has only @action methods — each
+    # action still generates correct spec output.
+    responses={200: OpenApiTypes.OBJECT},
+)
 class SimulatorDashboardViewSet(viewsets.ViewSet):
     """
     Dashboard endpoints for simulator overview.

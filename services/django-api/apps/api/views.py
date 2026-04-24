@@ -6,9 +6,13 @@ import logging
 import time
 
 from django.conf import settings
+from rest_framework import serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,32 @@ def verify_slack_signature(request) -> bool:
     return hmac.compare_digest(expected_sig, signature)
 
 
+@extend_schema(
+    # Slack posts several envelope shapes (url_verification,
+    # interactive_message, block_actions, event_callback). Request body
+    # is Slack's, not ours — documented as a generic object. Response
+    # is one of: {ok: true}, {challenge: ...}, or an action result.
+    request=OpenApiTypes.OBJECT,
+    responses={
+        200: inline_serializer(
+            name="SlackWebhookResponse",
+            fields={
+                "ok": serializers.BooleanField(required=False),
+                "challenge": serializers.CharField(required=False),
+            },
+        ),
+        401: inline_serializer(
+            name="SlackSignatureError",
+            fields={"error": serializers.CharField()},
+        ),
+    },
+    description=(
+        "Slack webhook endpoint — accepts event callbacks, "
+        "interactive message actions, and block-kit action payloads. "
+        "Signature is verified against SLACK_SIGNING_SECRET; requests "
+        "without a valid v0 signature return 401."
+    ),
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def slack_webhook(request):

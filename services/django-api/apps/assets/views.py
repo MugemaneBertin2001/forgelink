@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 
 from apps.core.permissions import (
     CanManageAssets,
@@ -511,6 +513,12 @@ class AssetDashboardView(APIView):
 
     permission_classes = [CanViewAssets]
 
+    @extend_schema(
+        # Returns aggregated status counts + per-area device rollups.
+        # Shape is UI-driven and likely to change; documented as a
+        # generic object so SDKs don't lock to a volatile contract.
+        responses={200: OpenApiTypes.OBJECT},
+    )
     def get(self, request):
         """Get asset dashboard data."""
         plants = Plant.objects.filter(is_active=True)

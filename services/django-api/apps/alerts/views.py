@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 
 from apps.core.permissions import (
     AreaAccessPermission,
@@ -200,6 +201,18 @@ class AlertHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ["-triggered_at"]
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="hours",
+            type=int,
+            location=OpenApiParameter.QUERY,
+            description="Look-back window in hours (default 24).",
+            required=False,
+        ),
+    ],
+    responses=AlertStatsSerializer,
+)
 class AlertStatsView(APIView):
     """
     Alert statistics endpoint.

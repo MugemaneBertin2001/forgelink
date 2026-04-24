@@ -2,10 +2,17 @@
 
 import logging
 
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    inline_serializer,
+)
 
 from apps.core.permissions import (
     CanViewTelemetry,
@@ -24,9 +31,30 @@ from .serializers import (
 from .services import AggregationInterval, TelemetryService, TimeRange
 from .tdengine import init_tdengine_schema
 
+# Shared inline shape for "{\"message\": \"...\"}" style responses.
+# Used by write endpoints that return a simple confirmation string.
+_MessageResponse = inline_serializer(
+    name="MessageResponse",
+    fields={"message": serializers.CharField()},
+)
+
+_ErrorResponse = inline_serializer(
+    name="ErrorResponse",
+    fields={"error": serializers.CharField()},
+)
+
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+    # Default response envelope for every @action on this ViewSet.
+    # Individual actions that use a real serializer override this.
+    # NB: spectacular emits a "unable to guess serializer" warning
+    # on the class itself because it can't infer one for a bare
+    # ViewSet with only @action methods. The warning is cosmetic —
+    # each action endpoint still generates correct spec output.
+    responses={200: OpenApiTypes.OBJECT, 500: _ErrorResponse},
+)
 class TelemetryViewSet(viewsets.ViewSet):
     """
     ViewSet for telemetry data operations.
@@ -292,6 +320,17 @@ class TelemetryViewSet(viewsets.ViewSet):
             )
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="area",
+            type=str,
+            location=OpenApiParameter.PATH,
+            description="Area code (e.g. melt-shop, continuous-casting).",
+        ),
+    ],
+    responses={200: OpenApiTypes.OBJECT, 500: _ErrorResponse},
+)
 class AreaViewSet(viewsets.ViewSet):
     permission_classes = [CanViewTelemetry]
 
@@ -334,6 +373,13 @@ class PlantDashboardView(APIView):
     Plant-wide dashboard endpoint.
     """
 
+    @extend_schema(
+        # Returns an ad-hoc rollup of per-area stats, device counts,
+        # and latest alert severities. The shape is free-form today
+        # (UI iterates fast); documenting it as a generic object
+        # prevents misleading SDK bindings until the shape stabilises.
+        responses={200: OpenApiTypes.OBJECT, 500: _ErrorResponse},
+    )
     def get(self, request):
         """Get plant-wide dashboard data."""
         try:
@@ -355,6 +401,10 @@ class TelemetryEventView(APIView):
     Endpoint for recording telemetry events.
     """
 
+    @extend_schema(
+        request=TelemetryEventSerializer,
+        responses={201: _MessageResponse, 500: _ErrorResponse},
+    )
     def post(self, request):
         """Record a telemetry event."""
         serializer = TelemetryEventSerializer(data=request.data)
@@ -398,6 +448,10 @@ class TDengineSchemaView(APIView):
     Endpoint for TDengine schema management.
     """
 
+    @extend_schema(
+        request=None,
+        responses={200: _MessageResponse, 500: _ErrorResponse},
+    )
     def post(self, request):
         """Initialize TDengine schema."""
         try:
