@@ -40,9 +40,9 @@ pythonpath = ["."]
 addopts = "-v --tb=short"
 
 # Coverage gate. ``fail_under`` is a ratchet — PRs can only push it
-# up, never down. Today's baseline (25%) is a conservative floor so
-# that the first CI run doesn't fail; bump it after each PR that
-# lands new tests.
+# up, never down. CI measured 50.49% on the previous green build,
+# so the floor sits at 48 (≈2pp buffer). Raise whenever new tests
+# land; do not lower without explicit reviewer discussion.
 [tool.coverage.run]
 source = ["apps"]
 branch = true
@@ -57,7 +57,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 25
+fail_under = 48
 show_missing = true
 skip_covered = false
 exclude_lines = [
