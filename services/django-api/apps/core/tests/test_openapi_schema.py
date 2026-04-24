@@ -17,10 +17,10 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-import pytest
-import yaml
 from django.core.management import call_command
 
+import pytest
+import yaml
 
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "api" / "openapi.yml"
 
