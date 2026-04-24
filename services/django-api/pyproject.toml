@@ -38,3 +38,31 @@ DJANGO_SETTINGS_MODULE = "apps.core.settings"
 python_files = ["test_*.py", "*_test.py"]
 pythonpath = ["."]
 addopts = "-v --tb=short"
+
+# Coverage gate. ``fail_under`` is a ratchet — PRs can only push it
+# up, never down. Today's baseline (25%) is a conservative floor so
+# that the first CI run doesn't fail; bump it after each PR that
+# lands new tests.
+[tool.coverage.run]
+source = ["apps"]
+branch = true
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/admin.py",
+    "apps/core/settings.py",
+    "apps/core/wsgi.py",
+    "apps/core/asgi.py",
+    "manage.py",
+]
+
+[tool.coverage.report]
+fail_under = 25
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
