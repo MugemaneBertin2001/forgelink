@@ -30,6 +30,11 @@ from asyncua.common.node import Node
 import redis.asyncio as redis
 
 from .config import settings
+from .correlation import (
+    bind as bind_correlation,
+    clear as clear_correlation,
+    new_correlation_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -199,15 +204,24 @@ class OPCUASimulator:
             "quality": "good",
             "timestamp": "2024-03-20T14:30:00Z",
             "sequence": 10482,
-            "unit": "celsius"
+            "unit": "celsius",
+            "correlation_id": "..."   # optional — honored if present
         }
         """
+        # Honor an incoming correlation_id so a trace that started in
+        # Django continues here; otherwise mint one so log lines for
+        # this single update are still groupable.
+        bind_correlation(
+            data.get("correlation_id") or new_correlation_id()
+        )
+
         opc_node_id = data.get('opc_node_id')
         value = data.get('value')
         quality = data.get('quality', 'good')
 
         if opc_node_id not in self.nodes:
             logger.debug(f"Unknown node: {opc_node_id}")
+            clear_correlation()
             return
 
         node = self.nodes[opc_node_id]
@@ -217,14 +231,17 @@ class OPCUASimulator:
         # type in its own dataclass; passing ``StatusCode=`` raises
         # TypeError at runtime for every update.
         now = datetime.now(timezone.utc)
-        await node.write_value(ua.DataValue(
-            Value=ua.Variant(float(value), ua.VariantType.Double),
-            StatusCode_=self._quality_to_status(quality),
-            SourceTimestamp=now,
-            ServerTimestamp=now
-        ))
+        try:
+            await node.write_value(ua.DataValue(
+                Value=ua.Variant(float(value), ua.VariantType.Double),
+                StatusCode_=self._quality_to_status(quality),
+                SourceTimestamp=now,
+                ServerTimestamp=now
+            ))
 
-        logger.debug(f"Updated {opc_node_id} = {value} ({quality})")
+            logger.debug(f"Updated {opc_node_id} = {value} ({quality})")
+        finally:
+            clear_correlation()
 
     def _quality_to_status(self, quality: str) -> ua.StatusCode:
         """Convert quality string to OPC-UA StatusCode."""

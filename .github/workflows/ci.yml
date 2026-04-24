@@ -231,9 +231,18 @@ jobs:
         run: uv pip install --system -r requirements.txt
 
       - name: Run tests with coverage gate
-        # pytest-cov reads fail_under from each service's .coveragerc.
-        # A regression below the threshold fails the job.
-        run: pytest --cov
+        # Explicit --cov=<package> rather than --cov (no arg) because
+        # pytest-cov's no-arg mode quietly collects zero data on
+        # some environments even when .coveragerc has `source = X`.
+        # Each service's package name happens to equal a known string
+        # we can derive from the service slug.
+        run: |
+          case "${{ matrix.service }}" in
+            mqtt-bridge)     pkg=bridge ;;
+            edge-gateway)    pkg=gateway ;;
+            opcua-simulator) pkg=simulator ;;
+          esac
+          pytest --cov=$pkg
 
   # Lint and Format Checks
   lint:

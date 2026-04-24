@@ -7,14 +7,12 @@ import sys
 from prometheus_client import start_http_server, Counter, Gauge
 
 from .config import settings
+from .logging_setup import configure as configure_logging
 from .server import OPCUASimulator
 from .health import start_health_server
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+# Must run before any other module's first log call.
+configure_logging(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 # Prometheus metrics
