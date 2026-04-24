@@ -153,6 +153,7 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "django_celery_results",
     "django_prometheus",
+    "drf_spectacular",
     # ForgeLink apps
     "apps.core",
     "apps.assets",
@@ -287,6 +288,49 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# drf-spectacular — OpenAPI 3.1 schema generation for the REST API.
+# This is the discoverable contract that Flutter / future SDK clients
+# generate against; the /api/schema/ endpoint is served in DEBUG and
+# checked into git as schema.yml for offline consumers.
+SPECTACULAR_SETTINGS = {
+    "TITLE": "ForgeLink API",
+    "DESCRIPTION": (
+        "Industrial IoT platform for steel manufacturing. Django owns "
+        "every business object (assets, alerts, telemetry, simulator); "
+        "the Spring IDP issues RS256 JWTs this API validates via JWKS."
+    ),
+    "VERSION": "2.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Authenticate the Swagger UI with a Bearer token pasted into the
+    # "Authorize" dialog. No implicit login flow yet — login hits the
+    # Spring IDP, not Django.
+    "SECURITY": [{"BearerAuth": []}],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": r"/api/",
+    # GraphQL is documented separately (GraphiQL at /graphql/). We
+    # deliberately exclude it from the OpenAPI doc so the REST spec
+    # stays focused on what an SDK would actually bind against.
+    "SERVERS": [
+        {"url": "http://localhost:8000", "description": "Local dev"},
+        {"url": "https://api.forgelink.local", "description": "Production"},
+    ],
+    # Camel-case in Flutter client, snake_case on the wire — let the
+    # SDK generator handle that itself; we emit what DRF returns.
+    #
+    # Multiple models have a "status" choice field (Alert.STATUSES,
+    # Device.STATUS_CHOICES, SimulatedPLC/Device status, …). Without
+    # explicit names spectacular generates Status547Enum / Status8adEnum
+    # hashes, which break SDK ergonomics across schema regens.
+    "ENUM_NAME_OVERRIDES": {
+        "AlertStatusEnum": "apps.alerts.models.Alert.STATUSES",
+        "DeviceStatusEnum": "apps.assets.models.Device.STATUS_CHOICES",
+        "AlertSeverityEnum": "apps.alerts.models.AlertRule.SEVERITIES",
+        "SimDeviceStatusEnum": "apps.simulator.models.SimulatedDevice.Status",
+        "SimSessionStatusEnum": "apps.simulator.models.SimulationSession.Status",
+    },
 }
 
 # GraphQL

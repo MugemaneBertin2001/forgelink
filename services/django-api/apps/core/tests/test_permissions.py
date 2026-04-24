@@ -89,6 +89,17 @@ class TestHasPermission:
         permission = HasPermission()
         assert permission.has_permission(request, mock_view) is True
 
+    def test_instance_is_callable_returning_self(self):
+        # Regression guard: DRF's default ``get_permissions`` does
+        # ``[p() for p in permission_classes]``. Views that use
+        # ``permission_classes = [HasPermission("x")]`` registered an
+        # instance there; without ``__call__`` the instantiation step
+        # raises ``TypeError: 'HasPermission' object is not callable``
+        # at request time AND during drf-spectacular schema walks.
+        permission = HasPermission("assets.view")
+        assert permission() is permission
+        assert permission().permission_code == "assets.view"
+
 
 class TestHasAnyPermission:
     """Tests for HasAnyPermission permission class."""
