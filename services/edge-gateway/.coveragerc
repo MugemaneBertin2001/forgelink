@@ -1,0 +1,16 @@
+[run]
+source = gateway
+branch = True
+omit =
+    gateway/__main__.py
+    gateway/health.py
+    */tests/*
+
+[report]
+fail_under = 40
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
