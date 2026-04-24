@@ -40,6 +40,17 @@ class HasPermission(BasePermission):
         """Initialize with optional permission code."""
         self.permission_code = permission_code
 
+    def __call__(self):
+        # DRF's default ``get_permissions`` does
+        # ``[p() for p in self.permission_classes]`` — which works for a
+        # class (instantiates it) but crashes for an instance unless
+        # the instance is callable. Making instances return themselves
+        # lets us keep the ergonomic ``permission_classes =
+        # [HasPermission("assets.view")]`` form on views that don't
+        # override ``get_permissions`` (e.g. audit, simulator detail
+        # endpoints) without losing the class-level form either.
+        return self
+
     def has_permission(self, request, view):
         if not getattr(request.user, "is_authenticated", False):
             return False
