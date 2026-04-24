@@ -26,6 +26,11 @@ from asyncua.common.subscription import Subscription, DataChangeNotif
 import paho.mqtt.client as mqtt
 
 from .config import settings
+from .correlation import (
+    bind as bind_correlation,
+    clear as clear_correlation,
+    new_correlation_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -315,6 +320,10 @@ class EdgeGateway:
 
         Called by asyncua when a subscribed node value changes.
         """
+        # Fresh correlation ID per OPC-UA data change. Every log
+        # line inside this scope (dead-band, sequence, publish,
+        # buffer) carries the same id.
+        bind_correlation(new_correlation_id())
         try:
             node_id = node.nodeid.to_string()
 
@@ -369,6 +378,8 @@ class EdgeGateway:
 
         except Exception as e:
             logger.error(f"Error processing data change: {e}")
+        finally:
+            clear_correlation()
 
     def _status_to_quality(self, status_code) -> str:
         """Convert OPC-UA StatusCode to quality string."""

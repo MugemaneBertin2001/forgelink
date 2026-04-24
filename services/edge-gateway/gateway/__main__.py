@@ -9,12 +9,10 @@ from prometheus_client import start_http_server, Counter, Gauge
 from .config import settings
 from .bridge import EdgeGateway
 from .health import start_health_server, set_opcua_status, set_mqtt_status
+from .logging_setup import configure as configure_logging
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+# Must run before any other module's first log call.
+configure_logging(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 # Prometheus metrics
