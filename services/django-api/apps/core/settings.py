@@ -341,6 +341,23 @@ GRAPHENE = {
     ],
 }
 
+# GraphQL query size limits. Enforced as graphql-core validation rules
+# attached to the GraphQLView — rejection happens before any resolver
+# runs, so neither limit can be bypassed by a clever resolver.
+#
+# Depth 10 comfortably covers the deepest legitimate query today
+# (plantDashboard → areas → lines → cells → devices → alerts → rule)
+# with headroom. Complexity 1000 is a crude field-count cap that
+# trips well before anyone can paginate into ORM-exploding territory.
+GRAPHENE_MAX_QUERY_DEPTH = 10
+GRAPHENE_MAX_QUERY_COMPLEXITY = 1000
+
+# Schema introspection reveals every field, type, and argument — useful
+# for devs (GraphiQL) but a free map of the attack surface in prod.
+# Flip on only when DEBUG is True; prod returns "GraphQL introspection
+# has been disabled" on __schema / __type queries.
+GRAPHQL_DISABLE_INTROSPECTION = not DEBUG
+
 # Celery
 CELERY_BROKER_URL = f"redis://{redis_password_part}{env.redis_host}:{env.redis_port}/{env.redis_celery_db}"
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
